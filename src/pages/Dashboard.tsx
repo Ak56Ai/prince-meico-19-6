@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAccount } from 'wagmi';
-import { User, FolderOpen, Edit, Plus, ExternalLink, Calendar, Tag, Globe, Twitter, Send, Facebook, Linkedin, Eye } from 'lucide-react';
+import { User, FolderOpen, Edit, Plus, ExternalLink, Calendar, Tag, Globe, Twitter, Send, Facebook, Linkedin, Eye, Save, AlertCircle } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 
@@ -41,6 +41,7 @@ const Dashboard = () => {
   const [editingProfile, setEditingProfile] = useState(false);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState('');
+  const [messageType, setMessageType] = useState<'success' | 'error'>('success');
   const [profileForm, setProfileForm] = useState({
     name: '',
     email: '',
@@ -81,6 +82,9 @@ const Dashboard = () => {
           email: profileData.email || '',
           location: profileData.location || ''
         });
+      } else {
+        // Create profile if it doesn't exist
+        await createInitialProfile();
       }
 
       // Fetch user projects
@@ -103,6 +107,34 @@ const Dashboard = () => {
     }
   };
 
+  const createInitialProfile = async () => {
+    if (!address) return;
+
+    try {
+      console.log('Creating initial profile for:', address);
+      
+      const { data, error } = await supabase
+        .from('user_profiles')
+        .insert([{
+          wallet_address: address,
+          name: null,
+          email: null,
+          location: null
+        }])
+        .select()
+        .single();
+
+      if (error) {
+        console.error('Error creating initial profile:', error);
+      } else {
+        console.log('Initial profile created:', data);
+        setProfile(data);
+      }
+    } catch (error) {
+      console.error('Error in createInitialProfile:', error);
+    }
+  };
+
   const handleProfileUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!address) return;
@@ -114,10 +146,9 @@ const Dashboard = () => {
       console.log('Updating profile for address:', address, 'with data:', profileForm);
 
       const profileData = {
-        wallet_address: address,
-        name: profileForm.name,
-        email: profileForm.email,
-        location: profileForm.location
+        name: profileForm.name.trim() || null,
+        email: profileForm.email.trim() || null,
+        location: profileForm.location.trim() || null
       };
 
       if (profile) {
@@ -125,42 +156,46 @@ const Dashboard = () => {
         console.log('Updating existing profile...');
         const { data, error } = await supabase
           .from('user_profiles')
-          .update({
-            name: profileForm.name,
-            email: profileForm.email,
-            location: profileForm.location
-          })
+          .update(profileData)
           .eq('wallet_address', address)
-          .select();
+          .select()
+          .single();
 
         if (error) {
           console.error('Update error:', error);
           throw error;
         }
         console.log('Profile updated successfully:', data);
+        setProfile(data);
       } else {
         // Create new profile
         console.log('Creating new profile...');
         const { data, error } = await supabase
           .from('user_profiles')
-          .insert([profileData])
-          .select();
+          .insert([{
+            wallet_address: address,
+            ...profileData
+          }])
+          .select()
+          .single();
 
         if (error) {
           console.error('Insert error:', error);
           throw error;
         }
         console.log('Profile created successfully:', data);
+        setProfile(data);
       }
 
-      await fetchUserData();
       setEditingProfile(false);
       setMessage('Profile updated successfully!');
+      setMessageType('success');
       
       setTimeout(() => setMessage(''), 3000);
     } catch (error) {
       console.error('Error updating profile:', error);
       setMessage(`Failed to update profile: ${error.message || 'Please try again.'}`);
+      setMessageType('error');
       setTimeout(() => setMessage(''), 3000);
     } finally {
       setSaving(false);
@@ -185,8 +220,24 @@ const Dashboard = () => {
     return (
       <div className="min-h-screen bg-white dark:bg-gradient-to-b dark:from-gray-900 dark:to-black pt-24">
         <div className="container mx-auto px-4 text-center">
-          <h1 className="text-4xl font-bold text-gray-900 dark:text-white mb-6">Dashboard</h1>
-          <p className="text-gray-600 dark:text-gray-300 mb-8">Please connect your wallet to access the dashboard.</p>
+          <div className="max-w-md mx-auto">
+            <div className="relative group">
+              <div className="absolute inset-0 bg-gradient-to-r from-purple-600/20 to-blue-600/20 rounded-2xl blur-xl opacity-80"></div>
+              
+              <div className="relative rounded-2xl p-1">
+                <div className="rounded-xl bg-gray-50 dark:bg-gray-800/90 backdrop-blur-sm border border-gray-200 dark:border-white/10 p-8">
+                  <AlertCircle className="w-16 h-16 text-yellow-500 mx-auto mb-4" />
+                  <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">Dashboard Access</h1>
+                  <p className="text-gray-600 dark:text-gray-300 mb-6">
+                    Please connect your wallet to access your dashboard and manage your profile and projects.
+                  </p>
+                  <div className="text-sm text-gray-500 dark:text-gray-400">
+                    Your wallet connection is secure and your data is protected.
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     );
@@ -213,6 +264,11 @@ const Dashboard = () => {
                     <p className="text-gray-600 dark:text-gray-400 text-sm">
                       {address?.slice(0, 6)}...{address?.slice(-4)}
                     </p>
+                    {profile?.email && (
+                      <p className="text-gray-500 dark:text-gray-500 text-xs mt-1">
+                        {profile.email}
+                      </p>
+                    )}
                   </div>
                   
                   <nav className="space-y-2">
@@ -266,9 +322,9 @@ const Dashboard = () => {
 
                     {message && (
                       <div className={`mb-6 p-4 rounded-lg ${
-                        message.includes('successfully') 
-                          ? 'bg-green-100 dark:bg-green-900/20 text-green-700 dark:text-green-400' 
-                          : 'bg-red-100 dark:bg-red-900/20 text-red-700 dark:text-red-400'
+                        messageType === 'success'
+                          ? 'bg-green-100 dark:bg-green-900/20 text-green-700 dark:text-green-400 border border-green-300 dark:border-green-700' 
+                          : 'bg-red-100 dark:bg-red-900/20 text-red-700 dark:text-red-400 border border-red-300 dark:border-red-700'
                       }`}>
                         {message}
                       </div>
@@ -309,19 +365,31 @@ const Dashboard = () => {
                           />
                         </div>
 
-                        <button
-                          type="submit"
-                          disabled={saving}
-                          className={`px-6 py-3 rounded-full bg-gradient-to-r from-purple-600 to-blue-500 text-white font-medium transition-all transform hover:scale-105 ${saving ? 'opacity-75 cursor-not-allowed' : ''}`}
-                        >
-                          {saving ? 'Saving...' : 'Save Changes'}
-                        </button>
+                        <div className="flex space-x-4">
+                          <button
+                            type="submit"
+                            disabled={saving}
+                            className={`flex items-center px-6 py-3 rounded-full bg-gradient-to-r from-purple-600 to-blue-500 text-white font-medium transition-all transform hover:scale-105 ${saving ? 'opacity-75 cursor-not-allowed' : ''}`}
+                          >
+                            <Save className="w-4 h-4 mr-2" />
+                            {saving ? 'Saving...' : 'Save Changes'}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setEditingProfile(false)}
+                            className="px-6 py-3 rounded-full bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors"
+                          >
+                            Cancel
+                          </button>
+                        </div>
                       </form>
                     ) : (
                       <div className="space-y-6">
                         <div>
                           <label className="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">Wallet Address</label>
-                          <p className="text-gray-900 dark:text-white font-mono text-sm">{address}</p>
+                          <p className="text-gray-900 dark:text-white font-mono text-sm bg-gray-100 dark:bg-gray-700/50 p-3 rounded-lg">
+                            {address}
+                          </p>
                         </div>
 
                         <div>
@@ -450,12 +518,24 @@ const Dashboard = () => {
                   </div>
                 ) : (
                   <div className="text-center py-12">
-                    <Plus className="w-16 h-16 text-gray-400 dark:text-gray-600 mx-auto mb-4" />
-                    <h3 className="text-xl font-semibold text-gray-600 dark:text-gray-400 mb-2">No Projects Yet</h3>
-                    <p className="text-gray-500 dark:text-gray-500 mb-6">Start by creating your first ICO project.</p>
-                    <button className="px-6 py-3 rounded-full bg-gradient-to-r from-purple-600 to-blue-500 text-white font-medium transition-all transform hover:scale-105">
-                      Create Project
-                    </button>
+                    <div className="relative group">
+                      <div className="absolute inset-0 bg-gradient-to-r from-purple-600/20 to-blue-600/20 rounded-2xl blur-xl opacity-80"></div>
+                      
+                      <div className="relative rounded-2xl p-1">
+                        <div className="rounded-xl bg-gray-50 dark:bg-gray-800/90 backdrop-blur-sm border border-gray-200 dark:border-white/10 p-12">
+                          <Plus className="w-16 h-16 text-gray-400 dark:text-gray-600 mx-auto mb-4" />
+                          <h3 className="text-xl font-semibold text-gray-600 dark:text-gray-400 mb-2">No Projects Yet</h3>
+                          <p className="text-gray-500 dark:text-gray-500 mb-6">Start by creating your first ICO project.</p>
+                          <Link
+                            to="/"
+                            className="inline-flex items-center px-6 py-3 rounded-full bg-gradient-to-r from-purple-600 to-blue-500 text-white font-medium transition-all transform hover:scale-105"
+                          >
+                            <Plus className="w-4 h-4 mr-2" />
+                            Create Project
+                          </Link>
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 )}
               </div>

@@ -1,12 +1,61 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useConnect, useDisconnect, useAccount } from 'wagmi';
 import { Wallet, ChevronDown, LogOut } from 'lucide-react';
+import { supabase } from '../lib/supabase';
 
 const WalletConnect: React.FC = () => {
   const [isOpen, setIsOpen] = useState(false);
   const { connectors, connect, isPending } = useConnect();
   const { disconnect } = useDisconnect();
   const { isConnected, address } = useAccount();
+
+  // Auto-save user data when wallet connects
+  useEffect(() => {
+    if (isConnected && address) {
+      saveUserToDatabase(address);
+    }
+  }, [isConnected, address]);
+
+  const saveUserToDatabase = async (walletAddress: string) => {
+    try {
+      console.log('Saving user to database:', walletAddress);
+
+      // Check if user already exists
+      const { data: existingUser, error: checkError } = await supabase
+        .from('user_profiles')
+        .select('*')
+        .eq('wallet_address', walletAddress)
+        .maybeSingle();
+
+      if (checkError && checkError.code !== 'PGRST116') {
+        console.error('Error checking existing user:', checkError);
+        return;
+      }
+
+      // If user doesn't exist, create new profile
+      if (!existingUser) {
+        const { data, error } = await supabase
+          .from('user_profiles')
+          .insert([{
+            wallet_address: walletAddress,
+            name: null,
+            email: null,
+            location: null
+          }])
+          .select();
+
+        if (error) {
+          console.error('Error creating user profile:', error);
+        } else {
+          console.log('User profile created successfully:', data);
+        }
+      } else {
+        console.log('User already exists in database:', existingUser);
+      }
+    } catch (error) {
+      console.error('Error in saveUserToDatabase:', error);
+    }
+  };
 
   const shortenAddress = (address: string) => {
     return `${address.slice(0, 6)}...${address.slice(-4)}`;

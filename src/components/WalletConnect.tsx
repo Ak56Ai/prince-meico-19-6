@@ -12,20 +12,23 @@ const WalletConnect: React.FC = () => {
   // Auto-save user data when wallet connects
   useEffect(() => {
     if (isConnected && address) {
+      console.log('Wallet connected, saving user:', address);
       saveUserToDatabase(address);
     }
   }, [isConnected, address]);
 
   const saveUserToDatabase = async (walletAddress: string) => {
     try {
-      console.log('Saving user to database:', walletAddress);
+      console.log('Attempting to save user to database:', walletAddress);
 
-      // Check if user already exists
+      // First check if user already exists
       const { data: existingUser, error: checkError } = await supabase
         .from('user_profiles')
         .select('*')
         .eq('wallet_address', walletAddress)
         .maybeSingle();
+
+      console.log('Existing user check result:', { existingUser, checkError });
 
       if (checkError && checkError.code !== 'PGRST116') {
         console.error('Error checking existing user:', checkError);
@@ -34,6 +37,7 @@ const WalletConnect: React.FC = () => {
 
       // If user doesn't exist, create new profile
       if (!existingUser) {
+        console.log('Creating new user profile...');
         const { data, error } = await supabase
           .from('user_profiles')
           .insert([{
@@ -46,6 +50,7 @@ const WalletConnect: React.FC = () => {
 
         if (error) {
           console.error('Error creating user profile:', error);
+          console.error('Error details:', JSON.stringify(error, null, 2));
         } else {
           console.log('User profile created successfully:', data);
         }
@@ -61,7 +66,18 @@ const WalletConnect: React.FC = () => {
     return `${address.slice(0, 6)}...${address.slice(-4)}`;
   };
 
+  const handleConnect = async (connector: any) => {
+    try {
+      console.log('Connecting with connector:', connector.name);
+      await connect({ connector });
+      setIsOpen(false);
+    } catch (error) {
+      console.error('Connection error:', error);
+    }
+  };
+
   const handleDisconnect = () => {
+    console.log('Disconnecting wallet...');
     disconnect();
     setIsOpen(false);
     // Clear any local storage or session data if needed
@@ -133,10 +149,7 @@ const WalletConnect: React.FC = () => {
               {connectors.map((connector) => (
                 <button
                   key={connector.uid}
-                  onClick={() => {
-                    connect({ connector });
-                    setIsOpen(false);
-                  }}
+                  onClick={() => handleConnect(connector)}
                   disabled={isPending}
                   className="flex items-center w-full px-4 py-3 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                 >

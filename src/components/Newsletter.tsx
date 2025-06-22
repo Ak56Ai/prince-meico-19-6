@@ -17,6 +17,14 @@ const Newsletter: React.FC = () => {
       return;
     }
 
+    // Basic email validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email.trim())) {
+      setMessage('Please enter a valid email address');
+      setMessageType('error');
+      return;
+    }
+
     setIsSubmitting(true);
     setMessage('');
     
@@ -25,11 +33,17 @@ const Newsletter: React.FC = () => {
 
       const { data, error } = await supabase
         .from('newsletter_subscriptions')
-        .insert([{ email: email.trim() }])
+        .insert([{ 
+          email: email.trim(),
+          subscribed_at: new Date().toISOString(),
+          is_active: true
+        }])
         .select();
 
       if (error) {
         console.error('Newsletter subscription error:', error);
+        console.error('Error details:', JSON.stringify(error, null, 2));
+        
         if (error.code === '23505') { // Unique constraint violation
           setMessage('This email is already subscribed!');
           setMessageType('error');
@@ -42,7 +56,7 @@ const Newsletter: React.FC = () => {
         setMessageType('success');
         setEmail('');
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Newsletter subscription error:', error);
       setMessage(`Failed to subscribe: ${error.message || 'Please try again.'}`);
       setMessageType('error');

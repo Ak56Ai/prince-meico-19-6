@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAccount } from 'wagmi';
-import { User, FolderOpen, Edit, Plus, ExternalLink, Calendar, Tag, Globe, Twitter, Send, Facebook, Linkedin, Eye, Save, AlertCircle } from 'lucide-react';
+import { User, FolderOpen, Edit, Plus, ExternalLink, Calendar, Tag, Globe, Twitter, Send, Facebook, Linkedin, Eye, Save, AlertCircle, RefreshCw } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 
@@ -11,6 +11,7 @@ interface UserProfile {
   email: string;
   location: string;
   created_at: string;
+  updated_at: string;
 }
 
 interface IcoProject {
@@ -50,17 +51,20 @@ const Dashboard = () => {
 
   useEffect(() => {
     if (isConnected && address) {
+      console.log('Dashboard: Wallet connected, fetching user data for:', address);
       fetchUserData();
     }
   }, [isConnected, address]);
 
   const fetchUserData = async () => {
-    if (!address) return;
+    if (!address) {
+      console.log('Dashboard: No address available');
+      return;
+    }
 
     try {
       setLoading(true);
-      
-      console.log('Fetching user data for address:', address);
+      console.log('Dashboard: Fetching user data for address:', address);
       
       // Fetch user profile
       const { data: profileData, error: profileError } = await supabase
@@ -69,13 +73,14 @@ const Dashboard = () => {
         .eq('wallet_address', address)
         .maybeSingle();
 
+      console.log('Dashboard: Profile query result:', { profileData, profileError });
+
       if (profileError && profileError.code !== 'PGRST116') {
-        console.error('Error fetching profile:', profileError);
+        console.error('Dashboard: Error fetching profile:', profileError);
       }
 
-      console.log('Profile data:', profileData);
-
       if (profileData) {
+        console.log('Dashboard: Profile found:', profileData);
         setProfile(profileData);
         setProfileForm({
           name: profileData.name || '',
@@ -83,7 +88,7 @@ const Dashboard = () => {
           location: profileData.location || ''
         });
       } else {
-        // Create profile if it doesn't exist
+        console.log('Dashboard: No profile found, creating initial profile');
         await createInitialProfile();
       }
 
@@ -94,14 +99,17 @@ const Dashboard = () => {
         .eq('wallet_address', address)
         .order('created_at', { ascending: false });
 
-      if (projectsError) {
-        console.error('Error fetching projects:', projectsError);
-      }
+      console.log('Dashboard: Projects query result:', { projectsData, projectsError });
 
-      console.log('Projects data:', projectsData);
-      setProjects(projectsData || []);
+      if (projectsError) {
+        console.error('Dashboard: Error fetching projects:', projectsError);
+      } else {
+        setProjects(projectsData || []);
+      }
     } catch (error) {
-      console.error('Error fetching user data:', error);
+      console.error('Dashboard: Error fetching user data:', error);
+      setMessage('Failed to load user data');
+      setMessageType('error');
     } finally {
       setLoading(false);
     }
@@ -111,7 +119,7 @@ const Dashboard = () => {
     if (!address) return;
 
     try {
-      console.log('Creating initial profile for:', address);
+      console.log('Dashboard: Creating initial profile for:', address);
       
       const { data, error } = await supabase
         .from('user_profiles')
@@ -125,13 +133,14 @@ const Dashboard = () => {
         .single();
 
       if (error) {
-        console.error('Error creating initial profile:', error);
+        console.error('Dashboard: Error creating initial profile:', error);
+        throw error;
       } else {
-        console.log('Initial profile created:', data);
+        console.log('Dashboard: Initial profile created:', data);
         setProfile(data);
       }
     } catch (error) {
-      console.error('Error in createInitialProfile:', error);
+      console.error('Dashboard: Error in createInitialProfile:', error);
     }
   };
 
@@ -143,34 +152,29 @@ const Dashboard = () => {
       setSaving(true);
       setMessage('');
 
-      console.log('Updating profile for address:', address, 'with data:', profileForm);
+      console.log('Dashboard: Updating profile for address:', address, 'with data:', profileForm);
 
       const profileData = {
         name: profileForm.name.trim() || null,
         email: profileForm.email.trim() || null,
-        location: profileForm.location.trim() || null
+        location: profileForm.location.trim() || null,
+        updated_at: new Date().toISOString()
       };
 
+      let result;
       if (profile) {
         // Update existing profile
-        console.log('Updating existing profile...');
-        const { data, error } = await supabase
+        console.log('Dashboard: Updating existing profile...');
+        result = await supabase
           .from('user_profiles')
           .update(profileData)
           .eq('wallet_address', address)
           .select()
           .single();
-
-        if (error) {
-          console.error('Update error:', error);
-          throw error;
-        }
-        console.log('Profile updated successfully:', data);
-        setProfile(data);
       } else {
         // Create new profile
-        console.log('Creating new profile...');
-        const { data, error } = await supabase
+        console.log('Dashboard: Creating new profile...');
+        result = await supabase
           .from('user_profiles')
           .insert([{
             wallet_address: address,
@@ -178,22 +182,24 @@ const Dashboard = () => {
           }])
           .select()
           .single();
-
-        if (error) {
-          console.error('Insert error:', error);
-          throw error;
-        }
-        console.log('Profile created successfully:', data);
-        setProfile(data);
       }
 
+      const { data, error } = result;
+
+      if (error) {
+        console.error('Dashboard: Profile update error:', error);
+        throw error;
+      }
+
+      console.log('Dashboard: Profile updated successfully:', data);
+      setProfile(data);
       setEditingProfile(false);
       setMessage('Profile updated successfully!');
       setMessageType('success');
       
       setTimeout(() => setMessage(''), 3000);
-    } catch (error) {
-      console.error('Error updating profile:', error);
+    } catch (error: any) {
+      console.error('Dashboard: Error updating profile:', error);
       setMessage(`Failed to update profile: ${error.message || 'Please try again.'}`);
       setMessageType('error');
       setTimeout(() => setMessage(''), 3000);
@@ -296,6 +302,17 @@ const Dashboard = () => {
                       Your Projects ({projects.length})
                     </button>
                   </nav>
+                  
+                  <div className="mt-6 pt-6 border-t border-gray-200 dark:border-gray-700">
+                    <button
+                      onClick={fetchUserData}
+                      disabled={loading}
+                      className="w-full flex items-center justify-center px-4 py-2 text-sm bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 rounded-lg transition-colors"
+                    >
+                      <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+                      Refresh Data
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
@@ -330,7 +347,11 @@ const Dashboard = () => {
                       </div>
                     )}
 
-                    {editingProfile ? (
+                    {loading ? (
+                      <div className="flex justify-center py-12">
+                        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-purple-500"></div>
+                      </div>
+                    ) : editingProfile ? (
                       <form onSubmit={handleProfileUpdate} className="space-y-6">
                         <div>
                           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Name</label>
@@ -411,6 +432,13 @@ const Dashboard = () => {
                           <label className="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">Member Since</label>
                           <p className="text-gray-900 dark:text-white">{profile ? formatDate(profile.created_at) : 'New user'}</p>
                         </div>
+
+                        {profile?.updated_at && (
+                          <div>
+                            <label className="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">Last Updated</label>
+                            <p className="text-gray-900 dark:text-white">{formatDate(profile.updated_at)}</p>
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
@@ -449,7 +477,7 @@ const Dashboard = () => {
                                   project.status === 'upcoming' ? 'bg-blue-500/90' :
                                   'bg-gray-500/90'
                                 } backdrop-blur-sm`}>
-                                  {project.status}
+                                  {project.status.toUpperCase()}
                                 </span>
                                 {project.ticker && (
                                   <span className="px-3 py-1 rounded-full text-sm font-medium text-white bg-purple-500/90 backdrop-blur-sm">

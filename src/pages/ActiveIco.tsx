@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
-import { supabase } from '../lib/supabase';
+import { ChevronLeft, ChevronRight, RefreshCw } from 'lucide-react';
+import { supabase, testConnection } from '../lib/supabase';
 import IcoCard from '../components/IcoCard';
 
 interface IcoProject {
@@ -28,42 +28,67 @@ const ActiveIco = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(20);
   const [totalProjects, setTotalProjects] = useState(0);
+  const [connectionStatus, setConnectionStatus] = useState<boolean | null>(null);
 
   useEffect(() => {
+    checkConnection();
     fetchProjects();
   }, [currentPage, itemsPerPage]);
+
+  const checkConnection = async () => {
+    const isConnected = await testConnection();
+    setConnectionStatus(isConnected);
+    if (!isConnected) {
+      setError('Database connection failed. Please check your configuration.');
+    }
+  };
 
   const fetchProjects = async () => {
     try {
       setLoading(true);
+      setError(null);
       
-      // Get total count
-      const { count } = await supabase
+      console.log('Fetching projects from database...');
+      
+      // Get total count first
+      const { count, error: countError } = await supabase
         .from('ico_projects')
-        .select('*', { count: 'exact', head: true })
-        .eq('status', 'active');
+        .select('*', { count: 'exact', head: true });
 
+      if (countError) {
+        console.error('Error getting count:', countError);
+        throw countError;
+      }
+
+      console.log('Total projects count:', count);
       setTotalProjects(count || 0);
 
       // Get paginated data
       const from = (currentPage - 1) * itemsPerPage;
       const to = from + itemsPerPage - 1;
 
+      console.log('Fetching projects with pagination:', { from, to });
+
       const { data, error } = await supabase
         .from('ico_projects')
         .select('*')
-        .eq('status', 'active')
         .order('created_at', { ascending: false })
         .range(from, to);
 
       if (error) {
+        console.error('Error fetching projects:', error);
         throw error;
       }
 
+      console.log('Fetched projects:', data);
       setProjects(data || []);
-    } catch (err) {
-      console.error('Error fetching projects:', err);
-      setError('Failed to load projects');
+      
+      if (!data || data.length === 0) {
+        console.log('No projects found in database');
+      }
+    } catch (err: any) {
+      console.error('Error in fetchProjects:', err);
+      setError(`Failed to load projects: ${err.message || 'Unknown error'}`);
     } finally {
       setLoading(false);
     }
@@ -112,13 +137,29 @@ const ActiveIco = () => {
     return (
       <div className="min-h-screen bg-white dark:bg-gradient-to-b dark:from-gray-900 dark:to-black pt-24">
         <div className="container mx-auto px-4 text-center">
-          <p className="text-red-600 dark:text-red-400">{error}</p>
-          <button 
-            onClick={fetchProjects}
-            className="mt-4 px-4 py-2 bg-purple-600 rounded-lg hover:bg-purple-700 text-white"
-          >
-            Retry
-          </button>
+          <div className="max-w-md mx-auto">
+            <div className="relative group">
+              <div className="absolute inset-0 bg-gradient-to-r from-red-600/20 to-orange-600/20 rounded-2xl blur-xl opacity-80"></div>
+              
+              <div className="relative rounded-2xl p-1">
+                <div className="rounded-xl bg-gray-50 dark:bg-gray-800/90 backdrop-blur-sm border border-gray-200 dark:border-white/10 p-8">
+                  <p className="text-red-600 dark:text-red-400 mb-4">{error}</p>
+                  <div className="space-y-4">
+                    <button 
+                      onClick={fetchProjects}
+                      className="flex items-center justify-center w-full px-4 py-2 bg-purple-600 rounded-lg hover:bg-purple-700 text-white transition-colors"
+                    >
+                      <RefreshCw className="w-4 h-4 mr-2" />
+                      Retry
+                    </button>
+                    <div className="text-sm text-gray-600 dark:text-gray-400">
+                      Connection Status: {connectionStatus === null ? 'Testing...' : connectionStatus ? 'Connected' : 'Failed'}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     );
@@ -135,6 +176,9 @@ const ActiveIco = () => {
             Discover and invest in the most promising blockchain projects.
             Our curated list of active ICOs represents the future of decentralized innovation.
           </p>
+          <div className="mt-4 text-sm text-gray-500 dark:text-gray-400">
+            Database Status: {connectionStatus === null ? 'Checking...' : connectionStatus ? '✅ Connected' : '❌ Disconnected'}
+          </div>
         </div>
 
         {/* Controls */}
@@ -155,14 +199,27 @@ const ActiveIco = () => {
             <span className="text-gray-600 dark:text-gray-400">projects per page</span>
           </div>
           
-          <div className="text-gray-600 dark:text-gray-400">
-            Showing {((currentPage - 1) * itemsPerPage) + 1} to {Math.min(currentPage * itemsPerPage, totalProjects)} of {totalProjects} projects
+          <div className="flex items-center space-x-4">
+            <button
+              onClick={fetchProjects}
+              disabled={loading}
+              className="flex items-center px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-colors disabled:opacity-50"
+            >
+              <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+              Refresh
+            </button>
+            <div className="text-gray-600 dark:text-gray-400">
+              Showing {totalProjects > 0 ? ((currentPage - 1) * itemsPerPage) + 1 : 0} to {Math.min(currentPage * itemsPerPage, totalProjects)} of {totalProjects} projects
+            </div>
           </div>
         </div>
 
         {loading ? (
           <div className="flex justify-center items-center min-h-[400px]">
-            <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-purple-500"></div>
+            <div className="text-center">
+              <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-purple-500 mx-auto mb-4"></div>
+              <p className="text-gray-600 dark:text-gray-400">Loading projects...</p>
+            </div>
           </div>
         ) : projects.length > 0 ? (
           <>
@@ -213,8 +270,24 @@ const ActiveIco = () => {
           </>
         ) : (
           <div className="text-center py-16">
-            <h3 className="text-2xl text-gray-600 dark:text-gray-400">No active ICO projects found</h3>
-            <p className="text-gray-500 dark:text-gray-500 mt-2">Check back soon for new opportunities!</p>
+            <div className="relative group">
+              <div className="absolute inset-0 bg-gradient-to-r from-purple-600/20 to-blue-600/20 rounded-2xl blur-xl opacity-80"></div>
+              
+              <div className="relative rounded-2xl p-1">
+                <div className="rounded-xl bg-gray-50 dark:bg-gray-800/90 backdrop-blur-sm border border-gray-200 dark:border-white/10 p-12">
+                  <h3 className="text-2xl text-gray-600 dark:text-gray-400 mb-4">No ICO projects found</h3>
+                  <p className="text-gray-500 dark:text-gray-500 mb-6">
+                    {totalProjects === 0 ? 'Be the first to submit a project!' : 'Check back soon for new opportunities!'}
+                  </p>
+                  <button
+                    onClick={fetchProjects}
+                    className="px-6 py-3 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-colors"
+                  >
+                    Refresh Projects
+                  </button>
+                </div>
+              </div>
+            </div>
           </div>
         )}
       </div>

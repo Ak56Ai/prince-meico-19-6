@@ -1,15 +1,15 @@
 import React, { useState, useEffect } from 'react';
-import { useAccount } from 'wagmi';
-import { User, FolderOpen, Edit, Plus, ExternalLink, Calendar, Tag, Globe, Twitter, Send, Facebook, Linkedin, Eye, Save, AlertCircle, RefreshCw } from 'lucide-react';
+import { User, FolderOpen, Edit, Plus, ExternalLink, Calendar, Tag, Globe, Twitter, Send, Facebook, Linkedin, Eye, Save, AlertCircle, RefreshCw, Crown, Star, Shield } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
+import { useAuth } from '../contexts/AuthContext';
 
 interface UserProfile {
   id: string;
-  wallet_address: string;
-  name: string;
   email: string;
+  name: string;
   location: string;
+  plan_type: 'free' | 'silver' | 'gold';
   created_at: string;
   updated_at: string;
 }
@@ -34,7 +34,7 @@ interface IcoProject {
 }
 
 const Dashboard = () => {
-  const { address, isConnected } = useAccount();
+  const { user, loading: authLoading } = useAuth();
   const [activeTab, setActiveTab] = useState('profile');
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [projects, setProjects] = useState<IcoProject[]>([]);
@@ -45,32 +45,31 @@ const Dashboard = () => {
   const [messageType, setMessageType] = useState<'success' | 'error'>('success');
   const [profileForm, setProfileForm] = useState({
     name: '',
-    email: '',
     location: ''
   });
 
   useEffect(() => {
-    if (isConnected && address) {
-      console.log('Dashboard: Wallet connected, fetching user data for:', address);
+    if (user && !authLoading) {
+      console.log('Dashboard: User authenticated, fetching user data for:', user.id);
       fetchUserData();
     }
-  }, [isConnected, address]);
+  }, [user, authLoading]);
 
   const fetchUserData = async () => {
-    if (!address) {
-      console.log('Dashboard: No address available');
+    if (!user) {
+      console.log('Dashboard: No user available');
       return;
     }
 
     try {
       setLoading(true);
-      console.log('Dashboard: Fetching user data for address:', address);
+      console.log('Dashboard: Fetching user data for user ID:', user.id);
       
       // Fetch user profile
       const { data: profileData, error: profileError } = await supabase
         .from('user_profiles')
         .select('*')
-        .eq('wallet_address', address)
+        .eq('id', user.id)
         .maybeSingle();
 
       console.log('Dashboard: Profile query result:', { profileData, profileError });
@@ -84,7 +83,6 @@ const Dashboard = () => {
         setProfile(profileData);
         setProfileForm({
           name: profileData.name || '',
-          email: profileData.email || '',
           location: profileData.location || ''
         });
       } else {
@@ -92,11 +90,11 @@ const Dashboard = () => {
         await createInitialProfile();
       }
 
-      // Fetch user projects
+      // Fetch user projects (using email since we don't have wallet_address anymore)
       const { data: projectsData, error: projectsError } = await supabase
         .from('ico_projects')
         .select('*')
-        .eq('wallet_address', address)
+        .eq('email', user.email)
         .order('created_at', { ascending: false });
 
       console.log('Dashboard: Projects query result:', { projectsData, projectsError });
@@ -116,18 +114,19 @@ const Dashboard = () => {
   };
 
   const createInitialProfile = async () => {
-    if (!address) return;
+    if (!user) return;
 
     try {
-      console.log('Dashboard: Creating initial profile for:', address);
+      console.log('Dashboard: Creating initial profile for:', user.id);
       
       const { data, error } = await supabase
         .from('user_profiles')
         .insert([{
-          wallet_address: address,
-          name: null,
-          email: null,
-          location: null
+          id: user.id,
+          email: user.email,
+          name: user.user_metadata?.name || null,
+          location: null,
+          plan_type: 'free'
         }])
         .select()
         .single();
@@ -138,6 +137,10 @@ const Dashboard = () => {
       } else {
         console.log('Dashboard: Initial profile created:', data);
         setProfile(data);
+        setProfileForm({
+          name: data.name || '',
+          location: data.location || ''
+        });
       }
     } catch (error) {
       console.error('Dashboard: Error in createInitialProfile:', error);
@@ -146,17 +149,16 @@ const Dashboard = () => {
 
   const handleProfileUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!address) return;
+    if (!user) return;
 
     try {
       setSaving(true);
       setMessage('');
 
-      console.log('Dashboard: Updating profile for address:', address, 'with data:', profileForm);
+      console.log('Dashboard: Updating profile for user:', user.id, 'with data:', profileForm);
 
       const profileData = {
         name: profileForm.name.trim() || null,
-        email: profileForm.email.trim() || null,
         location: profileForm.location.trim() || null,
         updated_at: new Date().toISOString()
       };
@@ -168,7 +170,7 @@ const Dashboard = () => {
         result = await supabase
           .from('user_profiles')
           .update(profileData)
-          .eq('wallet_address', address)
+          .eq('id', user.id)
           .select()
           .single();
       } else {
@@ -177,7 +179,9 @@ const Dashboard = () => {
         result = await supabase
           .from('user_profiles')
           .insert([{
-            wallet_address: address,
+            id: user.id,
+            email: user.email,
+            plan_type: 'free',
             ...profileData
           }])
           .select()
@@ -222,7 +226,41 @@ const Dashboard = () => {
     return tags.split(',').map(tag => tag.trim()).filter(tag => tag.length > 0);
   };
 
-  if (!isConnected) {
+  const getPlanIcon = (planType: string) => {
+    switch (planType) {
+      case 'silver':
+        return <Star className="w-5 h-5 text-gray-400" />;
+      case 'gold':
+        return <Crown className="w-5 h-5 text-yellow-500" />;
+      default:
+        return <Shield className="w-5 h-5 text-blue-500" />;
+    }
+  };
+
+  const getPlanColor = (planType: string) => {
+    switch (planType) {
+      case 'silver':
+        return 'from-gray-400 to-gray-600';
+      case 'gold':
+        return 'from-yellow-400 to-yellow-600';
+      default:
+        return 'from-blue-400 to-blue-600';
+    }
+  };
+
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-white dark:bg-gradient-to-b dark:from-gray-900 dark:to-black pt-24">
+        <div className="container mx-auto px-4 text-center">
+          <div className="flex justify-center items-center min-h-[400px]">
+            <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-purple-500"></div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (!user) {
     return (
       <div className="min-h-screen bg-white dark:bg-gradient-to-b dark:from-gray-900 dark:to-black pt-24">
         <div className="container mx-auto px-4 text-center">
@@ -235,10 +273,10 @@ const Dashboard = () => {
                   <AlertCircle className="w-16 h-16 text-yellow-500 mx-auto mb-4" />
                   <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">Dashboard Access</h1>
                   <p className="text-gray-600 dark:text-gray-300 mb-6">
-                    Please connect your wallet to access your dashboard and manage your profile and projects.
+                    Please sign in to access your dashboard and manage your profile and projects.
                   </p>
                   <div className="text-sm text-gray-500 dark:text-gray-400">
-                    Your wallet connection is secure and your data is protected.
+                    Your account is secure and your data is protected.
                   </div>
                 </div>
               </div>
@@ -265,15 +303,16 @@ const Dashboard = () => {
                       <User className="w-8 h-8 text-white" />
                     </div>
                     <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-                      {profile?.name || 'Anonymous User'}
+                      {profile?.name || user.user_metadata?.name || 'User'}
                     </h3>
                     <p className="text-gray-600 dark:text-gray-400 text-sm">
-                      {address?.slice(0, 6)}...{address?.slice(-4)}
+                      {user.email}
                     </p>
-                    {profile?.email && (
-                      <p className="text-gray-500 dark:text-gray-500 text-xs mt-1">
-                        {profile.email}
-                      </p>
+                    {profile && (
+                      <div className={`mt-2 inline-flex items-center px-3 py-1 rounded-full text-xs font-medium text-white bg-gradient-to-r ${getPlanColor(profile.plan_type)}`}>
+                        {getPlanIcon(profile.plan_type)}
+                        <span className="ml-1 capitalize">{profile.plan_type} Plan</span>
+                      </div>
                     )}
                   </div>
                   
@@ -365,17 +404,6 @@ const Dashboard = () => {
                         </div>
 
                         <div>
-                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Email</label>
-                          <input
-                            type="email"
-                            value={profileForm.email}
-                            onChange={(e) => setProfileForm(prev => ({ ...prev, email: e.target.value }))}
-                            className="w-full bg-white dark:bg-gray-900/50 border border-gray-300 dark:border-gray-700 rounded-lg px-4 py-3 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
-                            placeholder="Enter your email"
-                          />
-                        </div>
-
-                        <div>
                           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Location</label>
                           <input
                             type="text"
@@ -407,10 +435,8 @@ const Dashboard = () => {
                     ) : (
                       <div className="space-y-6">
                         <div>
-                          <label className="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">Wallet Address</label>
-                          <p className="text-gray-900 dark:text-white font-mono text-sm bg-gray-100 dark:bg-gray-700/50 p-3 rounded-lg">
-                            {address}
-                          </p>
+                          <label className="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">Email</label>
+                          <p className="text-gray-900 dark:text-white">{user.email}</p>
                         </div>
 
                         <div>
@@ -419,13 +445,16 @@ const Dashboard = () => {
                         </div>
 
                         <div>
-                          <label className="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">Email</label>
-                          <p className="text-gray-900 dark:text-white">{profile?.email || 'Not provided'}</p>
+                          <label className="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">Location</label>
+                          <p className="text-gray-900 dark:text-white">{profile?.location || 'Not provided'}</p>
                         </div>
 
                         <div>
-                          <label className="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">Location</label>
-                          <p className="text-gray-900 dark:text-white">{profile?.location || 'Not provided'}</p>
+                          <label className="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">Plan Type</label>
+                          <div className={`inline-flex items-center px-4 py-2 rounded-full text-white bg-gradient-to-r ${getPlanColor(profile?.plan_type || 'free')}`}>
+                            {getPlanIcon(profile?.plan_type || 'free')}
+                            <span className="ml-2 capitalize font-medium">{profile?.plan_type || 'free'} Plan</span>
+                          </div>
                         </div>
 
                         <div>

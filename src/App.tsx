@@ -26,6 +26,7 @@ import Sitemap from './pages/Sitemap';
 import Career from './pages/Career';
 import Dashboard from './pages/Dashboard';
 import ProjectDetail from './pages/ProjectDetail';
+import TokenDetail from './pages/TokenDetail';
 import ParticleBackground from './components/ParticleBackground';
 import NetworkIcoPage from './pages/NetworkIcoPage';
 
@@ -54,6 +55,7 @@ function App() {
                 <Route path="/" element={<Home />} />
                 <Route path="/active-ico" element={<ActiveIco />} />
                 <Route path="/project/:id" element={<ProjectDetail />} />
+                <Route path="/token/:symbol" element={<TokenDetail />} />
                 <Route path="/services" element={<Services />} />
                 <Route path="/contact" element={<Contact />} />
                 <Route path="/get-mecoin" element={<GetMeCoin />} />

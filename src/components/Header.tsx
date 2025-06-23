@@ -1,16 +1,20 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { Menu, X, ChevronDown, User } from 'lucide-react';
-import { useAccount } from 'wagmi';
+import { Menu, X, ChevronDown, User, LogOut } from 'lucide-react';
 import { ThemeToggle } from './ThemeToggle';
-import WalletConnect from './WalletConnect';
+import LoginModal from './auth/LoginModal';
+import { useAuth } from '../contexts/AuthContext';
 
 const Header: React.FC = () => {
   const [isScrolled, setIsScrolled] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [networksDropdownOpen, setNetworksDropdownOpen] = useState(false);
+  const [userDropdownOpen, setUserDropdownOpen] = useState(false);
+  const [loginModalOpen, setLoginModalOpen] = useState(false);
+  const [loginMode, setLoginMode] = useState<'signin' | 'signup' | 'forgot'>('signin');
+  
   const location = useLocation();
-  const { isConnected, address } = useAccount();
+  const { user, signOut, loading } = useAuth();
 
   useEffect(() => {
     const handleScroll = () => {
@@ -25,8 +29,18 @@ const Header: React.FC = () => {
     return location.pathname === path;
   };
 
-  const shortenAddress = (address: string) => {
-    return `${address.slice(0, 6)}...${address.slice(-4)}`;
+  const handleSignOut = async () => {
+    try {
+      await signOut();
+      setUserDropdownOpen(false);
+    } catch (error) {
+      console.error('Error signing out:', error);
+    }
+  };
+
+  const openLoginModal = (mode: 'signin' | 'signup' | 'forgot') => {
+    setLoginMode(mode);
+    setLoginModalOpen(true);
   };
 
   return (
@@ -130,28 +144,67 @@ const Header: React.FC = () => {
               <div className="flex items-center space-x-4">
                 <ThemeToggle />
                 
-                {/* Wallet Connect / Dashboard */}
-                {isConnected ? (
-                  <div className="flex items-center space-x-3">
-                    <Link
-                      to="/dashboard"
-                      className="flex items-center px-4 py-2 rounded-full bg-gradient-to-r from-purple-600 to-blue-500 hover:from-purple-700 hover:to-blue-600 text-white font-medium transition-all transform hover:scale-105"
+                {/* Auth Section */}
+                {loading ? (
+                  <div className="w-8 h-8 animate-spin rounded-full border-t-2 border-b-2 border-purple-500"></div>
+                ) : user ? (
+                  <div className="relative">
+                    <button
+                      onClick={() => setUserDropdownOpen(!userDropdownOpen)}
+                      className="flex items-center px-4 py-2 rounded-full bg-gradient-to-r from-purple-600 to-blue-500 hover:from-purple-700 hover:to-blue-600 text-white font-medium transition-all"
                     >
                       <User className="w-4 h-4 mr-2" />
-                      Dashboard
-                    </Link>
-                    <div className={`text-sm ${
-                      isScrolled 
-                        ? 'text-gray-600 dark:text-gray-400' 
-                        : 'text-gray-300'
-                    }`}>
-                      {address && shortenAddress(address)}
-                    </div>
+                      {user.user_metadata?.name || user.email?.split('@')[0] || 'User'}
+                      <ChevronDown className="w-4 h-4 ml-2" />
+                    </button>
+
+                    {userDropdownOpen && (
+                      <>
+                        <div 
+                          className="fixed inset-0 z-40" 
+                          onClick={() => setUserDropdownOpen(false)}
+                        />
+                        <div className="absolute top-full right-0 mt-2 w-48 rounded-md shadow-lg bg-white dark:bg-gray-800 ring-1 ring-black ring-opacity-5 z-50">
+                          <div className="py-1">
+                            <Link
+                              to="/dashboard"
+                              className="block px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
+                              onClick={() => setUserDropdownOpen(false)}
+                            >
+                              Dashboard
+                            </Link>
+                            <button
+                              onClick={handleSignOut}
+                              className="flex items-center w-full px-4 py-2 text-sm text-red-600 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                            >
+                              <LogOut className="w-4 h-4 mr-2" />
+                              Sign Out
+                            </button>
+                          </div>
+                        </div>
+                      </>
+                    )}
                   </div>
                 ) : (
-                  <WalletConnect />
+                  <div className="flex items-center space-x-3">
+                    <button
+                      onClick={() => openLoginModal('signin')}
+                      className={`px-4 py-2 rounded-full transition-colors ${
+                        isScrolled
+                          ? 'text-gray-900 dark:text-white hover:text-purple-600'
+                          : 'text-white hover:text-purple-400'
+                      }`}
+                    >
+                      Sign In
+                    </button>
+                    <button
+                      onClick={() => openLoginModal('signup')}
+                      className="px-4 py-2 rounded-full bg-gradient-to-r from-purple-600 to-blue-500 hover:from-purple-700 hover:to-blue-600 text-white font-medium transition-all transform hover:scale-105"
+                    >
+                      Sign Up
+                    </button>
+                  </div>
                 )}
-                
               </div>
             </div>
 
@@ -198,24 +251,47 @@ const Header: React.FC = () => {
             
             <Link to="/contact" className="block py-2 text-gray-900 dark:text-white">Contact Us</Link>
             
-            {isConnected ? (
-              <Link
-                to="/dashboard"
-                className="block mt-4 mb-2 text-center py-2 px-4 rounded-full bg-gradient-to-r from-purple-600 to-blue-500 text-white font-medium w-full"
-              >
-                Dashboard
-              </Link>
+            {user ? (
+              <div className="space-y-2 pt-4 border-t border-gray-200 dark:border-gray-700">
+                <Link
+                  to="/dashboard"
+                  className="block py-2 text-gray-900 dark:text-white"
+                >
+                  Dashboard
+                </Link>
+                <button
+                  onClick={handleSignOut}
+                  className="block w-full text-left py-2 text-red-600"
+                >
+                  Sign Out
+                </button>
+              </div>
             ) : (
-              <div className="mt-4 mb-2">
-                <WalletConnect />
+              <div className="flex space-x-2 mt-4 mb-2">
+                <button
+                  onClick={() => openLoginModal('signin')}
+                  className="flex-1 py-2 px-4 text-center rounded-lg border border-purple-600 text-purple-600 hover:bg-purple-50 dark:hover:bg-purple-900/20"
+                >
+                  Sign In
+                </button>
+                <button
+                  onClick={() => openLoginModal('signup')}
+                  className="flex-1 py-2 px-4 text-center rounded-lg bg-gradient-to-r from-purple-600 to-blue-500 text-white"
+                >
+                  Sign Up
+                </button>
               </div>
             )}
-            
           </div>
         </div>
       </header>
 
-      {/* Project Listing Modal */}
+      {/* Login Modal */}
+      <LoginModal 
+        isOpen={loginModalOpen} 
+        onClose={() => setLoginModalOpen(false)}
+        initialMode={loginMode}
+      />
     </>
   );
 };

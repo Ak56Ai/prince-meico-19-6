@@ -413,6 +413,16 @@ const Dashboard = () => {
                             placeholder="Enter your location"
                           />
                         </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Plan</label>
+                          <input
+                            type="text"
+                            value={profileForm.plan_type}
+                            onChange={(e) => setProfileForm(prev => ({ ...prev, location: e.target.value }))}
+                            className="w-full bg-white dark:bg-gray-900/50 border border-gray-300 dark:border-gray-700 rounded-lg px-4 py-3 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
+                            placeholder="Enter your plan"
+                          />
+                        </div>
 
                         <div className="flex space-x-4">
                           <button

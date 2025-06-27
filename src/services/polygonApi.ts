@@ -1,7 +1,7 @@
 import axios from 'axios';
 
 const POLYGON_API_BASE = 'https://api.polygon.io/v2';
-const API_KEY = import.meta.env.VITE_POLYGON_API_KEY || 'demo-key';
+const API_KEY = import.meta.env.VITE_POLYGON_API_KEY || 'J53CVY5FC978W3CC3YGGWHKXDWCNRHAMXN';
 
 export interface TokenPrice {
   symbol: string;

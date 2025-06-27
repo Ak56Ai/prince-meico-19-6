@@ -41,7 +41,8 @@ const ProjectListingModal: React.FC<ProjectListingModalProps> = ({ isOpen, onClo
     icoStartDate: '',
     icoEndDate: '',
     launchPrice: '',
-    comments: ''
+    comments: '',
+    tokenAddress: '' // Added token_address field
   });
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
@@ -60,6 +61,7 @@ const ProjectListingModal: React.FC<ProjectListingModalProps> = ({ isOpen, onClo
     if (!formData.icoStartDate) return 'ICO start date is required';
     if (!formData.icoEndDate) return 'ICO end date is required';
     if (!formData.launchPrice.trim()) return 'Launch price is required';
+    if (!formData.tokenAddress.trim()) return 'Token contract address is required';
     return null;
   };
 
@@ -119,7 +121,8 @@ const ProjectListingModal: React.FC<ProjectListingModalProps> = ({ isOpen, onClo
         ico_start_date: formData.icoStartDate,
         ico_end_date: formData.icoEndDate,
         launch_price: formData.launchPrice,
-        comments: formData.comments
+        comments: formData.comments,
+        token_address: formData.tokenAddress // Added token_address field
       };
 
       console.log('Project data to insert:', projectData);
@@ -166,7 +169,8 @@ const ProjectListingModal: React.FC<ProjectListingModalProps> = ({ isOpen, onClo
           icoStartDate: '',
           icoEndDate: '',
           launchPrice: '',
-          comments: ''
+          comments: '',
+          tokenAddress: ''
         });
       }, 2000);
     } catch (err) {
@@ -341,6 +345,25 @@ const ProjectListingModal: React.FC<ProjectListingModalProps> = ({ isOpen, onClo
                         placeholder="Do not put a $ sign if there is none"
                       />
                     </div>
+                  </div>
+
+                  {/* Token Address */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                      Token Contract Address *
+                    </label>
+                    <input
+                      type="text"
+                      name="tokenAddress"
+                      value={formData.tokenAddress}
+                      onChange={handleChange}
+                      required
+                      className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                      placeholder="0x742d35Cc6634C0532925a3b8D4C9db96590b5c8e"
+                    />
+                    <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                      Enter the ERC-20 contract address for token analytics
+                    </p>
                   </div>
 
                   {/* Tags */}

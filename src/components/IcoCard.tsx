@@ -18,6 +18,7 @@ interface IcoProject {
   telegram: string;
   facebook: string;
   linkedin: string;
+  token_address: string; // Added token_address field
 }
 
 interface IcoCardProps {

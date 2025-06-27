@@ -1,7 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { ArrowLeft, Calendar, Tag, Globe, Twitter, Send, Facebook, Linkedin, ExternalLink, ShoppingCart, Users, Target, Clock } from 'lucide-react';
+import { ArrowLeft, Calendar, Tag, Globe, Twitter, Send, Facebook, Linkedin, ExternalLink, ShoppingCart, Users, Target, Clock, TrendingUp, TrendingDown, BarChart3, Coins, RefreshCw } from 'lucide-react';
 import { supabase } from '../lib/supabase';
+import { polygonApi, TokenPrice, TokenSupply, TokenHolder, PriceHistory } from '../services/polygonApi';
+import PriceChart from '../components/charts/PriceChart';
+import HoldersChart from '../components/charts/HoldersChart';
 
 interface IcoProject {
   id: string;
@@ -28,6 +31,7 @@ interface IcoProject {
   country: string;
   project_details: string;
   created_at: string;
+  token_address: string; // Added token_address field
 }
 
 const ProjectDetail = () => {
@@ -37,12 +41,26 @@ const ProjectDetail = () => {
   const [error, setError] = useState<string | null>(null);
   const [showBuyModal, setShowBuyModal] = useState(false);
   const [buyAmount, setBuyAmount] = useState('');
+  
+  // Token analytics state
+  const [tokenPrice, setTokenPrice] = useState<TokenPrice | null>(null);
+  const [tokenSupply, setTokenSupply] = useState<TokenSupply | null>(null);
+  const [tokenHolders, setTokenHolders] = useState<TokenHolder[]>([]);
+  const [priceHistory, setPriceHistory] = useState<PriceHistory[]>([]);
+  const [tokenDataLoading, setTokenDataLoading] = useState(false);
+  const [selectedTimeframe, setSelectedTimeframe] = useState<'1D' | '7D' | '30D' | '1Y'>('7D');
 
   useEffect(() => {
     if (id) {
       fetchProject();
     }
   }, [id]);
+
+  useEffect(() => {
+    if (project?.token_address && project?.ticker) {
+      fetchTokenData(project.token_address, project.ticker);
+    }
+  }, [project, selectedTimeframe]);
 
   const fetchProject = async () => {
     try {
@@ -63,6 +81,29 @@ const ProjectDetail = () => {
     }
   };
 
+  const fetchTokenData = async (address: string, symbol: string) => {
+    try {
+      setTokenDataLoading(true);
+      console.log('Fetching token data for:', { address, symbol });
+
+      const [price, supply, holders, history] = await Promise.all([
+        polygonApi.getTokenPrice(symbol),
+        polygonApi.getTokenSupply(address),
+        polygonApi.getTokenHolders(address),
+        polygonApi.getPriceHistory(symbol, selectedTimeframe)
+      ]);
+
+      setTokenPrice(price);
+      setTokenSupply(supply);
+      setTokenHolders(holders);
+      setPriceHistory(history);
+    } catch (err) {
+      console.error('Error fetching token data:', err);
+    } finally {
+      setTokenDataLoading(false);
+    }
+  };
+
   const formatDate = (dateString: string) => {
     if (!dateString) return 'TBA';
     return new Date(dateString).toLocaleDateString('en-US', {
@@ -80,6 +121,22 @@ const ProjectDetail = () => {
   const parseKeyPoints = (keyPoints: string) => {
     if (!keyPoints) return [];
     return keyPoints.split('\n').filter(point => point.trim().length > 0);
+  };
+
+  const formatNumber = (num: number) => {
+    if (num >= 1e9) return (num / 1e9).toFixed(2) + 'B';
+    if (num >= 1e6) return (num / 1e6).toFixed(2) + 'M';
+    if (num >= 1e3) return (num / 1e3).toFixed(2) + 'K';
+    return num.toFixed(2);
+  };
+
+  const formatCurrency = (num: number) => {
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD',
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 6
+    }).format(num);
   };
 
   const socialLinks = [
@@ -176,6 +233,11 @@ const ProjectDetail = () => {
                         <p className="text-gray-600 dark:text-gray-400">
                           {project.country && `${project.country} • `}
                           Network: {project.network}
+                          {project.token_address && (
+                            <span className="block text-sm mt-1">
+                              Contract: {project.token_address.slice(0, 10)}...{project.token_address.slice(-8)}
+                            </span>
+                          )}
                         </p>
                       </div>
                       {project.launch_price && (
@@ -211,6 +273,144 @@ const ProjectDetail = () => {
                 </div>
               </div>
             </div>
+
+            {/* Token Analytics Section */}
+            {project.token_address && (
+              <div className="space-y-8">
+                {/* Token Stats Overview */}
+                {tokenPrice && tokenSupply && (
+                  <div className="relative group">
+                    <div className="absolute inset-0 bg-gradient-to-r from-indigo-600/20 to-purple-600/20 rounded-2xl blur-xl opacity-80"></div>
+                    
+                    <div className="relative rounded-2xl p-1">
+                      <div className="rounded-xl bg-gray-50 dark:bg-gray-800/90 backdrop-blur-sm border border-gray-200 dark:border-white/10 p-6">
+                        <div className="flex items-center justify-between mb-6">
+                          <h2 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center">
+                            <Coins className="w-6 h-6 mr-2" />
+                            Live Token Data
+                          </h2>
+                          <button
+                            onClick={() => fetchTokenData(project.token_address, project.ticker)}
+                            disabled={tokenDataLoading}
+                            className="flex items-center px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-colors text-sm"
+                          >
+                            <RefreshCw className={`w-4 h-4 mr-2 ${tokenDataLoading ? 'animate-spin' : ''}`} />
+                            Refresh
+                          </button>
+                        </div>
+
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+                          <div className="text-center">
+                            <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">Current Price</p>
+                            <p className="text-xl font-bold text-gray-900 dark:text-white">
+                              {formatCurrency(tokenPrice.price)}
+                            </p>
+                          </div>
+                          <div className="text-center">
+                            <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">24h Change</p>
+                            <div className={`flex items-center justify-center ${
+                              tokenPrice.change >= 0 ? 'text-green-500' : 'text-red-500'
+                            }`}>
+                              {tokenPrice.change >= 0 ? <TrendingUp className="w-4 h-4 mr-1" /> : <TrendingDown className="w-4 h-4 mr-1" />}
+                              <span className="font-semibold">
+                                {tokenPrice.changePercent.toFixed(2)}%
+                              </span>
+                            </div>
+                          </div>
+                          <div className="text-center">
+                            <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">Market Cap</p>
+                            <p className="font-semibold text-gray-900 dark:text-white">
+                              {formatCurrency(tokenPrice.marketCap)}
+                            </p>
+                          </div>
+                          <div className="text-center">
+                            <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">Volume (24h)</p>
+                            <p className="font-semibold text-gray-900 dark:text-white">
+                              {formatCurrency(tokenPrice.volume)}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Price Chart */}
+                {priceHistory.length > 0 && (
+                  <div className="relative group">
+                    <div className="absolute inset-0 bg-gradient-to-r from-purple-600/20 to-blue-600/20 rounded-2xl blur-xl opacity-80"></div>
+                    
+                    <div className="relative rounded-2xl p-1">
+                      <div className="rounded-xl bg-gray-50 dark:bg-gray-800/90 backdrop-blur-sm border border-gray-200 dark:border-white/10 p-6">
+                        <div className="flex items-center justify-between mb-6">
+                          <h3 className="text-xl font-bold text-gray-900 dark:text-white flex items-center">
+                            <BarChart3 className="w-5 h-5 mr-2" />
+                            Price Chart ({selectedTimeframe})
+                          </h3>
+                          <div className="flex space-x-2">
+                            {(['1D', '7D', '30D', '1Y'] as const).map((timeframe) => (
+                              <button
+                                key={timeframe}
+                                onClick={() => setSelectedTimeframe(timeframe)}
+                                className={`px-3 py-1 rounded-lg text-sm transition-colors ${
+                                  selectedTimeframe === timeframe
+                                    ? 'bg-purple-600 text-white'
+                                    : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600'
+                                }`}
+                              >
+                                {timeframe}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                        <PriceChart data={priceHistory} symbol={project.ticker} timeframe={selectedTimeframe} />
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Token Holders */}
+                {tokenHolders.length > 0 && (
+                  <div className="relative group">
+                    <div className="absolute inset-0 bg-gradient-to-r from-pink-500/20 to-red-500/20 rounded-2xl blur-xl opacity-80"></div>
+                    
+                    <div className="relative rounded-2xl p-1">
+                      <div className="rounded-xl bg-gray-50 dark:bg-gray-800/90 backdrop-blur-sm border border-gray-200 dark:border-white/10 p-6">
+                        <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-6 flex items-center">
+                          <Users className="w-5 h-5 mr-2" />
+                          Top Token Holders
+                        </h3>
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                          <div>
+                            <HoldersChart holders={tokenHolders} />
+                          </div>
+                          <div className="space-y-3">
+                            <h4 className="text-lg font-semibold text-gray-900 dark:text-white">Holder Details</h4>
+                            {tokenHolders.slice(0, 5).map((holder, index) => (
+                              <div key={index} className="flex items-center justify-between p-3 bg-gray-100 dark:bg-gray-700/50 rounded-lg">
+                                <div>
+                                  <p className="font-mono text-sm text-gray-900 dark:text-white">
+                                    {holder.address.slice(0, 10)}...{holder.address.slice(-8)}
+                                  </p>
+                                  <p className="text-xs text-gray-600 dark:text-gray-400">
+                                    {formatNumber(holder.balance)} tokens
+                                  </p>
+                                </div>
+                                <div className="text-right">
+                                  <p className="font-semibold text-gray-900 dark:text-white">
+                                    {holder.percentage.toFixed(2)}%
+                                  </p>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Key Points */}
             {project.key_points && (
@@ -267,6 +467,42 @@ const ProjectDetail = () => {
                       <ShoppingCart className="w-5 h-5 mr-2" />
                       Buy Tokens
                     </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Token Supply Info */}
+            {tokenSupply && (
+              <div className="relative group">
+                <div className="absolute inset-0 bg-gradient-to-r from-purple-600/20 to-blue-600/20 rounded-2xl blur-xl opacity-80"></div>
+                
+                <div className="relative rounded-2xl p-1">
+                  <div className="rounded-xl bg-gray-50 dark:bg-gray-800/90 backdrop-blur-sm border border-gray-200 dark:border-white/10 p-6">
+                    <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-4 flex items-center">
+                      <Coins className="w-5 h-5 mr-2" />
+                      Token Supply
+                    </h3>
+                    <div className="space-y-4">
+                      <div>
+                        <p className="text-sm text-gray-600 dark:text-gray-400">Total Supply</p>
+                        <p className="text-lg font-semibold text-gray-900 dark:text-white">
+                          {formatNumber(tokenSupply.totalSupply)}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-gray-600 dark:text-gray-400">Circulating Supply</p>
+                        <p className="text-lg font-semibold text-gray-900 dark:text-white">
+                          {formatNumber(tokenSupply.circulatingSupply)}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-gray-600 dark:text-gray-400">Max Supply</p>
+                        <p className="text-lg font-semibold text-gray-900 dark:text-white">
+                          {formatNumber(tokenSupply.maxSupply)}
+                        </p>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>

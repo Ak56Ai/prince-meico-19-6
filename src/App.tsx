@@ -44,9 +44,9 @@ const Home = () => (
 
 function App() {
   return (
-    <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
+    <ThemeProvider attribute="class" defaultTheme="dark" enableSystem>
       <Router>
-        <div className="min-h-screen bg-white dark:bg-gradient-to-b dark:from-gray-900 dark:to-black text-gray-900 dark:text-white overflow-hidden">
+        <div className="min-h-screen bg-custom-dark text-custom overflow-hidden">
           <ParticleBackground />
           <div className="relative z-10">
             <Header />

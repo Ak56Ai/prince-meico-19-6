@@ -32,7 +32,7 @@ const HeroSection: React.FC = () => {
   }, [slides.length]);
 
   return (
-    <section className="relative min-h-screen flex items-center overflow-hidden bg-gray-100 dark:bg-gray-900 z-10">
+    <section className="relative min-h-screen flex items-center overflow-hidden bg-custom-dark z-10">
       {/* Background images */}
       <div className="absolute inset-0 z-0">
         {slides.map((slide, index) => (
@@ -47,7 +47,7 @@ const HeroSection: React.FC = () => {
               alt="Hero background"
               className="w-full h-full object-cover"
             />
-            <div className="absolute inset-0 bg-black/60 dark:bg-black/70" />
+            <div className="absolute inset-0 bg-dark-bg/80 dark:bg-dark-bg/90" />
           </div>
         ))}
       </div>
@@ -73,14 +73,14 @@ const HeroSection: React.FC = () => {
                     word === "Chain!" || 
                     word === "Gateway" ||
                     word === "Chains!"
-                      ? 'bg-clip-text text-transparent bg-gradient-to-r from-purple-400 to-blue-400'
-                      : 'text-white'
+                      ? 'gradient-text'
+                      : 'text-dark-text'
                   }>
                     {word}{' '}
                   </span>
                 ))}
               </h1>
-              <p className="text-xl text-gray-200 mb-8">
+              <p className="text-xl text-dark-text/80 mb-8">
                 {slide.description}
               </p>
             </div>
@@ -89,14 +89,14 @@ const HeroSection: React.FC = () => {
           <div className="flex flex-col sm:flex-row space-y-4 sm:space-y-0 sm:space-x-4 mt-8">
             <button
               onClick={() => setIsModalOpen(true)}
-              className="inline-flex items-center justify-center px-6 py-3 rounded-full bg-gradient-to-r from-purple-600 to-blue-500 hover:from-purple-700 hover:to-blue-600 text-white font-medium transition-all transform hover:scale-105"
+              className="btn-primary inline-flex items-center justify-center"
             >
               List New Project
               <ArrowRight className="ml-2 h-5 w-5" />
             </button>
-            <a href="#" className="inline-flex items-center justify-center px-6 py-3 rounded-full bg-white/10 backdrop-blur-sm hover:bg-white/20 text-white font-medium border border-white/20 transition-all">
+            <button className="inline-flex items-center justify-center px-6 py-3 rounded-full bg-dark-accent1/20 backdrop-blur-sm hover:bg-dark-accent1/30 text-dark-text font-medium border border-dark-accent1/30 transition-all">
               Buy ICO
-            </a>
+            </button>
           </div>
         </div>
         
@@ -108,15 +108,15 @@ const HeroSection: React.FC = () => {
               onClick={() => setCurrentSlide(index)}
               className={`w-3 h-3 rounded-full transition-all ${
                 index === currentSlide 
-                  ? 'bg-purple-500 w-8' 
-                  : 'bg-white/50 hover:bg-white/80'
+                  ? 'bg-dark-accent2 w-8' 
+                  : 'bg-dark-accent1/50 hover:bg-dark-accent1/80'
               }`}
               aria-label={`Go to slide ${index + 1}`}
             />
           ))}
         </div>
       </div>
-      {/* ✅ Proper place for the modal */}
+      
       <ProjectListingModal 
         isOpen={isModalOpen} 
         onClose={() => setIsModalOpen(false)} 

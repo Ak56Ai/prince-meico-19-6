@@ -82,12 +82,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return;
       }
 
-      // Create new profile
+      // Create new profile with enhanced data
       const profileData = {
         id: user.id,
         email: user.email,
-        name: user.user_metadata?.name || null,
-        location: null,
+        name: user.user_metadata?.name || 
+              (user.user_metadata?.firstName && user.user_metadata?.lastName 
+                ? `${user.user_metadata.firstName} ${user.user_metadata.lastName}` 
+                : null),
+        location: user.user_metadata?.country || null,
         plan_type: 'free',
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
@@ -133,6 +136,37 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         await createUserProfile(user);
       } else {
         console.log('Profile exists:', existingProfile);
+        
+        // Update profile with any missing data from user metadata
+        const updates: any = {};
+        let needsUpdate = false;
+
+        if (!existingProfile.name && user.user_metadata?.name) {
+          updates.name = user.user_metadata.name;
+          needsUpdate = true;
+        }
+
+        if (!existingProfile.location && user.user_metadata?.country) {
+          updates.location = user.user_metadata.country;
+          needsUpdate = true;
+        }
+
+        if (needsUpdate) {
+          console.log('Updating profile with missing data:', updates);
+          const { error: updateError } = await supabase
+            .from('user_profiles')
+            .update({
+              ...updates,
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', user.id);
+
+          if (updateError) {
+            console.error('Error updating profile:', updateError);
+          } else {
+            console.log('Profile updated successfully');
+          }
+        }
       }
     } catch (error) {
       console.error('Error in ensureUserProfile:', error);

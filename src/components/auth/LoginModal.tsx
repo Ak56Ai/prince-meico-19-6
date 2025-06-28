@@ -32,6 +32,7 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, initialMode = 
 
     try {
       if (mode === 'signin') {
+        console.log('Attempting sign in for:', formData.email);
         const { error } = await signIn(formData.email, formData.password);
         if (error) throw error;
         setMessage('Successfully signed in!');
@@ -44,19 +45,35 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, initialMode = 
         if (!formData.acceptTerms) {
           throw new Error('Please accept the terms and conditions');
         }
+        
+        console.log('Attempting sign up for:', formData.email, 'with name:', formData.name);
+        
         const { error } = await signUp(formData.email, formData.password, {
-          name: formData.name
+          name: formData.name.trim() || null
         });
+        
         if (error) throw error;
+        
         setMessage('Account created successfully! Please check your email for verification.');
         setMessageType('success');
+        
+        // Clear form
+        setFormData({
+          email: '',
+          password: '',
+          confirmPassword: '',
+          name: '',
+          acceptTerms: false
+        });
       } else if (mode === 'forgot') {
+        console.log('Attempting password reset for:', formData.email);
         const { error } = await resetPassword(formData.email);
         if (error) throw error;
         setMessage('Password reset email sent! Check your inbox.');
         setMessageType('success');
       }
     } catch (error: any) {
+      console.error('Auth error:', error);
       setMessage(error.message || 'An error occurred');
       setMessageType('error');
     } finally {

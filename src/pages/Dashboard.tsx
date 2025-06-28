@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { User, FolderOpen, Edit, Plus, ExternalLink, Calendar, Tag, Globe, Twitter, Send, Facebook, Linkedin, Eye, Save, AlertCircle, RefreshCw, Crown, Star, Shield } from 'lucide-react';
+import { User, FolderOpen, Edit, Plus, ExternalLink, Calendar, Tag, Globe, Twitter, Send, Facebook, Linkedin, Eye, Save, AlertCircle, RefreshCw, Crown, Star, Shield, CreditCard, Clock, CheckCircle } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
@@ -33,11 +33,24 @@ interface IcoProject {
   created_at: string;
 }
 
+interface PlanPurchase {
+  id: string;
+  plan_type: 'silver' | 'gold';
+  currency_symbol: string;
+  amount_paid: number;
+  mecoin_equivalent: number;
+  transaction_hash: string;
+  status: 'pending' | 'confirmed' | 'failed';
+  created_at: string;
+  confirmed_at: string;
+}
+
 const Dashboard = () => {
   const { user, loading: authLoading } = useAuth();
   const [activeTab, setActiveTab] = useState('profile');
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [projects, setProjects] = useState<IcoProject[]>([]);
+  const [purchases, setPurchases] = useState<PlanPurchase[]>([]);
   const [loading, setLoading] = useState(true);
   const [editingProfile, setEditingProfile] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -103,6 +116,21 @@ const Dashboard = () => {
         console.error('Dashboard: Error fetching projects:', projectsError);
       } else {
         setProjects(projectsData || []);
+      }
+
+      // Fetch user plan purchases
+      const { data: purchasesData, error: purchasesError } = await supabase
+        .from('plan_purchases')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false });
+
+      console.log('Dashboard: Purchases query result:', { purchasesData, purchasesError });
+
+      if (purchasesError) {
+        console.error('Dashboard: Error fetching purchases:', purchasesError);
+      } else {
+        setPurchases(purchasesData || []);
       }
     } catch (error) {
       console.error('Dashboard: Error fetching user data:', error);
@@ -248,6 +276,28 @@ const Dashboard = () => {
     }
   };
 
+  const getStatusIcon = (status: string) => {
+    switch (status) {
+      case 'confirmed':
+        return <CheckCircle className="w-4 h-4 text-green-500" />;
+      case 'failed':
+        return <AlertCircle className="w-4 h-4 text-red-500" />;
+      default:
+        return <Clock className="w-4 h-4 text-yellow-500" />;
+    }
+  };
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'confirmed':
+        return 'text-green-600 dark:text-green-400 bg-green-100 dark:bg-green-900/20';
+      case 'failed':
+        return 'text-red-600 dark:text-red-400 bg-red-100 dark:bg-red-900/20';
+      default:
+        return 'text-yellow-600 dark:text-yellow-400 bg-yellow-100 dark:bg-yellow-900/20';
+    }
+  };
+
   if (authLoading) {
     return (
       <div className="min-h-screen bg-white dark:bg-gradient-to-b dark:from-gray-900 dark:to-black pt-24">
@@ -340,6 +390,18 @@ const Dashboard = () => {
                       <FolderOpen className="w-5 h-5 mr-3" />
                       Your Projects ({projects.length})
                     </button>
+
+                    <button
+                      onClick={() => setActiveTab('purchases')}
+                      className={`w-full flex items-center px-4 py-3 rounded-lg transition-colors ${
+                        activeTab === 'purchases'
+                          ? 'bg-purple-600/20 text-purple-600 dark:text-purple-400'
+                          : 'text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700/50'
+                      }`}
+                    >
+                      <CreditCard className="w-5 h-5 mr-3" />
+                      Plan Purchases ({purchases.length})
+                    </button>
                   </nav>
                   
                   <div className="mt-6 pt-6 border-t border-gray-200 dark:border-gray-700">
@@ -411,16 +473,6 @@ const Dashboard = () => {
                             onChange={(e) => setProfileForm(prev => ({ ...prev, location: e.target.value }))}
                             className="w-full bg-white dark:bg-gray-900/50 border border-gray-300 dark:border-gray-700 rounded-lg px-4 py-3 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
                             placeholder="Enter your location"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Plan</label>
-                          <input
-                            type="text"
-                            value={profileForm.plan_type}
-                            onChange={(e) => setProfileForm(prev => ({ ...prev, location: e.target.value }))}
-                            className="w-full bg-white dark:bg-gray-900/50 border border-gray-300 dark:border-gray-700 rounded-lg px-4 py-3 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
-                            placeholder="Enter your plan"
                           />
                         </div>
 
@@ -599,6 +651,118 @@ const Dashboard = () => {
                           >
                             <Plus className="w-4 h-4 mr-2" />
                             Create Project
+                          </Link>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {activeTab === 'purchases' && (
+              <div className="space-y-6">
+                <div className="flex items-center justify-between">
+                  <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Plan Purchases</h2>
+                  <span className="text-gray-600 dark:text-gray-400">{purchases.length} purchase(s)</span>
+                </div>
+
+                {loading ? (
+                  <div className="flex justify-center py-12">
+                    <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-purple-500"></div>
+                  </div>
+                ) : purchases.length > 0 ? (
+                  <div className="space-y-4">
+                    {purchases.map((purchase) => (
+                      <div key={purchase.id} className="relative group">
+                        <div className="absolute inset-0 bg-gradient-to-r from-purple-600/20 to-blue-600/20 rounded-2xl blur-xl opacity-80"></div>
+                        
+                        <div className="relative rounded-2xl p-1">
+                          <div className="rounded-xl bg-gray-50 dark:bg-gray-800/90 backdrop-blur-sm border border-gray-200 dark:border-white/10 p-6">
+                            <div className="flex items-center justify-between mb-4">
+                              <div className="flex items-center space-x-3">
+                                <div className={`w-12 h-12 rounded-full bg-gradient-to-r ${getPlanColor(purchase.plan_type)} flex items-center justify-center`}>
+                                  {getPlanIcon(purchase.plan_type)}
+                                </div>
+                                <div>
+                                  <h3 className="text-lg font-bold text-gray-900 dark:text-white capitalize">
+                                    {purchase.plan_type} Plan
+                                  </h3>
+                                  <p className="text-sm text-gray-600 dark:text-gray-400">
+                                    {formatDate(purchase.created_at)}
+                                  </p>
+                                </div>
+                              </div>
+                              <div className={`flex items-center px-3 py-1 rounded-full text-sm font-medium ${getStatusColor(purchase.status)}`}>
+                                {getStatusIcon(purchase.status)}
+                                <span className="ml-1 capitalize">{purchase.status}</span>
+                              </div>
+                            </div>
+
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+                              <div>
+                                <p className="text-sm text-gray-600 dark:text-gray-400">Amount Paid</p>
+                                <p className="font-semibold text-gray-900 dark:text-white">
+                                  {purchase.amount_paid} {purchase.currency_symbol}
+                                </p>
+                              </div>
+                              <div>
+                                <p className="text-sm text-gray-600 dark:text-gray-400">MeCoin Equivalent</p>
+                                <p className="font-semibold text-gray-900 dark:text-white">
+                                  {purchase.mecoin_equivalent} MECOIN
+                                </p>
+                              </div>
+                              <div>
+                                <p className="text-sm text-gray-600 dark:text-gray-400">Currency</p>
+                                <p className="font-semibold text-gray-900 dark:text-white">
+                                  {purchase.currency_symbol}
+                                </p>
+                              </div>
+                              <div>
+                                <p className="text-sm text-gray-600 dark:text-gray-400">Status</p>
+                                <p className="font-semibold text-gray-900 dark:text-white capitalize">
+                                  {purchase.status}
+                                </p>
+                              </div>
+                            </div>
+
+                            {purchase.transaction_hash && (
+                              <div className="border-t border-gray-200 dark:border-gray-700 pt-4">
+                                <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">Transaction Hash</p>
+                                <p className="font-mono text-sm text-gray-900 dark:text-white break-all">
+                                  {purchase.transaction_hash}
+                                </p>
+                              </div>
+                            )}
+
+                            {purchase.confirmed_at && (
+                              <div className="mt-2">
+                                <p className="text-sm text-gray-600 dark:text-gray-400">
+                                  Confirmed on {formatDate(purchase.confirmed_at)}
+                                </p>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-12">
+                    <div className="relative group">
+                      <div className="absolute inset-0 bg-gradient-to-r from-purple-600/20 to-blue-600/20 rounded-2xl blur-xl opacity-80"></div>
+                      
+                      <div className="relative rounded-2xl p-1">
+                        <div className="rounded-xl bg-gray-50 dark:bg-gray-800/90 backdrop-blur-sm border border-gray-200 dark:border-white/10 p-12">
+                          <CreditCard className="w-16 h-16 text-gray-400 dark:text-gray-600 mx-auto mb-4" />
+                          <h3 className="text-xl font-semibold text-gray-600 dark:text-gray-400 mb-2">No Purchases Yet</h3>
+                          <p className="text-gray-500 dark:text-gray-500 mb-6">Upgrade your plan to unlock premium features.</p>
+                          <Link
+                            to="/"
+                            className="inline-flex items-center px-6 py-3 rounded-full bg-gradient-to-r from-purple-600 to-blue-500 text-white font-medium transition-all transform hover:scale-105"
+                          >
+                            <CreditCard className="w-4 h-4 mr-2" />
+                            View Plans
                           </Link>
                         </div>
                       </div>

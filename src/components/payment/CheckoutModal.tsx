@@ -1,6 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { X, Copy, CheckCircle, AlertCircle, QrCode, CreditCard, Coins } from 'lucide-react';
 import QRCode from 'qrcode';
+import { supabase } from '../../lib/supabase';
+import { useAuth } from '../../contexts/AuthContext';
 
 interface CheckoutModalProps {
   isOpen: boolean;
@@ -9,46 +11,88 @@ interface CheckoutModalProps {
 }
 
 interface CurrencyRate {
+  id: string;
   symbol: string;
   name: string;
-  rate: number; // Rate in terms of MeCoin
+  rate: number;
   icon: string;
-  logo: string;
+  logo_url: string;
+  is_active: boolean;
 }
 
+interface ConfirmationModalProps {
+  isOpen: boolean;
+  onConfirm: () => void;
+  onCancel: () => void;
+  planType: string;
+  currency: string;
+  amount: string;
+}
+
+const ConfirmationModal: React.FC<ConfirmationModalProps> = ({ 
+  isOpen, 
+  onConfirm, 
+  onCancel, 
+  planType, 
+  currency, 
+  amount 
+}) => {
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 z-60 overflow-y-auto">
+      <div className="flex items-center justify-center min-h-screen px-4">
+        <div className="fixed inset-0 bg-black bg-opacity-75"></div>
+        <div className="relative bg-white dark:bg-gray-900 rounded-2xl p-8 max-w-md mx-auto">
+          <div className="text-center">
+            <div className="w-16 h-16 bg-yellow-100 dark:bg-yellow-900/20 rounded-full flex items-center justify-center mx-auto mb-4">
+              <AlertCircle className="w-8 h-8 text-yellow-600 dark:text-yellow-400" />
+            </div>
+            <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-4">
+              Confirm Purchase
+            </h3>
+            <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-4 mb-6">
+              <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">Plan:</p>
+              <p className="font-semibold text-gray-900 dark:text-white capitalize">{planType} Plan</p>
+              <p className="text-sm text-gray-600 dark:text-gray-400 mb-2 mt-3">Amount:</p>
+              <p className="font-semibold text-gray-900 dark:text-white">{amount} {currency}</p>
+            </div>
+            <p className="text-gray-600 dark:text-gray-300 mb-6">
+              Are you sure you want to proceed with this purchase?
+            </p>
+            <div className="flex space-x-4">
+              <button
+                onClick={onCancel}
+                className="flex-1 px-4 py-2 text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={onConfirm}
+                className="flex-1 px-4 py-2 bg-gradient-to-r from-purple-600 to-blue-500 text-white rounded-lg hover:from-purple-700 hover:to-blue-600 transition-all"
+              >
+                Confirm
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, planType }) => {
+  const { user } = useAuth();
   const [selectedCurrency, setSelectedCurrency] = useState('MECOIN');
   const [amount, setAmount] = useState(0);
   const [copied, setCopied] = useState(false);
   const [txHash, setTxHash] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
+  const [showConfirmation, setShowConfirmation] = useState(false);
   const [qrCodeUrl, setQrCodeUrl] = useState('');
-
-  // Fixed rates for demonstration - in production, fetch from API
-  const currencyRates: CurrencyRate[] = [
-    { 
-      symbol: 'MECOIN', 
-      name: 'MeCoin', 
-      rate: 1, 
-      icon: '🪙',
-      logo: 'https://images.pexels.com/photos/730547/pexels-photo-730547.jpeg?auto=compress&cs=tinysrgb&w=100&h=100&dpr=2'
-    },
-    { 
-      symbol: 'USDT', 
-      name: 'Tether USD', 
-      rate: 0.022, 
-      icon: '₮',
-      logo: 'https://cryptologos.cc/logos/tether-usdt-logo.png'
-    },
-    { 
-      symbol: 'USDC', 
-      name: 'USD Coin', 
-      rate: 0.022, 
-      icon: '💵',
-      logo: 'https://cryptologos.cc/logos/usd-coin-usdc-logo.png'
-    },
-  ];
+  const [currencies, setCurrencies] = useState<CurrencyRate[]>([]);
+  const [loading, setLoading] = useState(true);
 
   const planAmounts = {
     silver: 100,
@@ -57,16 +101,66 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, planType
 
   const walletAddress = "0x008EE20B704DfDD5019E4C115683b691b4587FEb";
 
-  React.useEffect(() => {
+  useEffect(() => {
     if (isOpen) {
       setAmount(planAmounts[planType]);
-      generateQRCode();
+      fetchCurrencies();
     }
   }, [isOpen, planType]);
 
-  React.useEffect(() => {
-    generateQRCode();
-  }, [selectedCurrency]);
+  useEffect(() => {
+    if (currencies.length > 0) {
+      generateQRCode();
+    }
+  }, [selectedCurrency, currencies]);
+
+  const fetchCurrencies = async () => {
+    try {
+      setLoading(true);
+      const { data, error } = await supabase
+        .from('accepted_currencies')
+        .select('*')
+        .eq('is_active', true)
+        .order('symbol');
+
+      if (error) throw error;
+      setCurrencies(data || []);
+    } catch (error) {
+      console.error('Error fetching currencies:', error);
+      // Fallback to default currencies
+      setCurrencies([
+        { 
+          id: '1',
+          symbol: 'MECOIN', 
+          name: 'MeCoin', 
+          rate: 1, 
+          icon: '🪙',
+          logo_url: 'https://images.pexels.com/photos/730547/pexels-photo-730547.jpeg?auto=compress&cs=tinysrgb&w=100&h=100&dpr=2',
+          is_active: true
+        },
+        { 
+          id: '2',
+          symbol: 'USDT', 
+          name: 'Tether USD', 
+          rate: 0.022, 
+          icon: '₮',
+          logo_url: 'https://cryptologos.cc/logos/tether-usdt-logo.png',
+          is_active: true
+        },
+        { 
+          id: '3',
+          symbol: 'USDC', 
+          name: 'USD Coin', 
+          rate: 0.022, 
+          icon: '💵',
+          logo_url: 'https://cryptologos.cc/logos/usd-coin-usdc-logo.png',
+          is_active: true
+        },
+      ]);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const generateQRCode = async () => {
     try {
@@ -86,7 +180,8 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, planType
   };
 
   const calculateConversion = (mecoinAmount: number, targetCurrency: string) => {
-    const rate = currencyRates.find(c => c.symbol === targetCurrency)?.rate || 1;
+    const currency = currencies.find(c => c.symbol === targetCurrency);
+    const rate = currency?.rate || 1;
     return (mecoinAmount * rate).toFixed(6);
   };
 
@@ -100,16 +195,47 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, planType
     }
   };
 
-  const handleSubmitTransaction = async () => {
+  const handleSubmitTransaction = () => {
     if (!txHash.trim()) {
       alert('Please enter a transaction hash');
       return;
     }
+    setShowConfirmation(true);
+  };
+
+  const confirmPurchase = async () => {
+    if (!user) {
+      alert('Please sign in to continue');
+      return;
+    }
 
     setSubmitting(true);
+    setShowConfirmation(false);
     
-    // Simulate API call to verify transaction
-    setTimeout(() => {
+    try {
+      const selectedCurrencyData = currencies.find(c => c.symbol === selectedCurrency);
+      const amountPaid = parseFloat(calculateConversion(amount, selectedCurrency));
+
+      // Insert purchase record
+      const { data, error } = await supabase
+        .from('plan_purchases')
+        .insert([{
+          user_id: user.id,
+          plan_type: planType,
+          currency_symbol: selectedCurrency,
+          amount_paid: amountPaid,
+          mecoin_equivalent: amount,
+          transaction_hash: txHash.trim(),
+          payment_address: walletAddress,
+          status: 'pending'
+        }])
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      console.log('Purchase record created:', data);
+      
       setSubmitting(false);
       setShowSuccess(true);
       
@@ -121,10 +247,30 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, planType
         setTxHash('');
         setSelectedCurrency('MECOIN');
       }, 3000);
-    }, 2000);
+    } catch (error) {
+      console.error('Error submitting purchase:', error);
+      setSubmitting(false);
+      alert('Error submitting purchase. Please try again.');
+    }
   };
 
   if (!isOpen) return null;
+
+  if (loading) {
+    return (
+      <div className="fixed inset-0 z-50 overflow-y-auto">
+        <div className="flex items-center justify-center min-h-screen px-4">
+          <div className="fixed inset-0 bg-black bg-opacity-75"></div>
+          <div className="relative bg-white dark:bg-gray-900 rounded-2xl p-8">
+            <div className="flex items-center justify-center">
+              <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-purple-500"></div>
+              <span className="ml-2 text-gray-900 dark:text-white">Loading payment options...</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto">
@@ -179,9 +325,9 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, planType
                     Select Payment Currency
                   </label>
                   <div className="grid grid-cols-1 gap-3">
-                    {currencyRates.map((currency) => (
+                    {currencies.map((currency) => (
                       <button
-                        key={currency.symbol}
+                        key={currency.id}
                         onClick={() => setSelectedCurrency(currency.symbol)}
                         className={`p-4 rounded-lg border-2 transition-all ${
                           selectedCurrency === currency.symbol
@@ -192,7 +338,7 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, planType
                         <div className="flex items-center justify-between">
                           <div className="flex items-center space-x-3">
                             <img 
-                              src={currency.logo} 
+                              src={currency.logo_url} 
                               alt={currency.symbol}
                               className="w-8 h-8 rounded-full"
                               onError={(e) => {
@@ -234,8 +380,8 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, planType
                     Current Exchange Rates (1 MeCoin =)
                   </h5>
                   <div className="space-y-2">
-                    {currencyRates.map((currency) => (
-                      <div key={currency.symbol} className="flex justify-between items-center py-1">
+                    {currencies.map((currency) => (
+                      <div key={currency.id} className="flex justify-between items-center py-1">
                         <span className="flex items-center space-x-2 text-sm">
                           <span>{currency.icon}</span>
                           <span className="font-medium">{currency.symbol}</span>
@@ -333,7 +479,7 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, planType
                   {submitting ? (
                     <div className="flex items-center justify-center">
                       <div className="animate-spin rounded-full h-5 w-5 border-t-2 border-b-2 border-white mr-2"></div>
-                      Verifying Transaction...
+                      Processing Purchase...
                     </div>
                   ) : (
                     'Submit Payment'
@@ -350,7 +496,7 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, planType
                         <li>Send exactly {calculateConversion(amount, selectedCurrency)} {selectedCurrency} to the address above</li>
                         <li>Copy and paste the transaction hash in the field above</li>
                         <li>Click "Submit Payment" to complete your purchase</li>
-                        <li>Your account will be upgraded within 30 minutes</li>
+                        <li>Your account will be upgraded within 30 minutes after confirmation</li>
                       </ol>
                     </div>
                   </div>
@@ -360,6 +506,16 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, planType
           </div>
         </div>
       </div>
+
+      {/* Confirmation Modal */}
+      <ConfirmationModal
+        isOpen={showConfirmation}
+        onConfirm={confirmPurchase}
+        onCancel={() => setShowConfirmation(false)}
+        planType={planType}
+        currency={selectedCurrency}
+        amount={calculateConversion(amount, selectedCurrency)}
+      />
 
       {/* Success Modal */}
       {showSuccess && (

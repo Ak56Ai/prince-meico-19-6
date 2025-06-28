@@ -147,6 +147,29 @@ const Dashboard = () => {
     try {
       console.log('Dashboard: Creating initial profile for:', user.id);
       
+      // First check if profile already exists to prevent duplicate key error
+      const { data: existingProfile, error: checkError } = await supabase
+        .from('user_profiles')
+        .select('*')
+        .eq('id', user.id)
+        .maybeSingle();
+
+      if (checkError && checkError.code !== 'PGRST116') {
+        console.error('Dashboard: Error checking existing profile:', checkError);
+        throw checkError;
+      }
+
+      if (existingProfile) {
+        console.log('Dashboard: Profile already exists, using existing profile:', existingProfile);
+        setProfile(existingProfile);
+        setProfileForm({
+          name: existingProfile.name || '',
+          location: existingProfile.location || ''
+        });
+        return;
+      }
+
+      // Profile doesn't exist, create new one
       const { data, error } = await supabase
         .from('user_profiles')
         .insert([{

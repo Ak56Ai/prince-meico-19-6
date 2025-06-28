@@ -72,7 +72,7 @@ const Dashboard = () => {
       setLoading(true);
       console.log('Dashboard: Fetching user data for user ID:', user.id);
       
-      // Fetch user profile
+      // Fetch user profile with better error handling
       const { data: profileData, error: profileError } = await supabase
         .from('user_profiles')
         .select('*')
@@ -83,14 +83,14 @@ const Dashboard = () => {
 
       if (profileError && profileError.code !== 'PGRST116') {
         console.error('Dashboard: Error fetching profile:', profileError);
-      }
-
-      if (profileData) {
+        setMessage('Error loading profile data');
+        setMessageType('error');
+      } else if (profileData) {
         console.log('Dashboard: Profile found:', profileData);
         setProfile(profileData);
       } else {
-        console.log('Dashboard: No profile found, creating initial profile');
-        await createInitialProfile();
+        console.log('Dashboard: No profile found, will create one if needed');
+        // Don't automatically create profile here, let the auth context handle it
       }
 
       // Fetch user projects (using email since we don't have wallet_address anymore)
@@ -128,55 +128,6 @@ const Dashboard = () => {
       setMessageType('error');
     } finally {
       setLoading(false);
-    }
-  };
-
-  const createInitialProfile = async () => {
-    if (!user) return;
-
-    try {
-      console.log('Dashboard: Creating initial profile for:', user.id);
-      
-      // First check if profile already exists to prevent duplicate key error
-      const { data: existingProfile, error: checkError } = await supabase
-        .from('user_profiles')
-        .select('*')
-        .eq('id', user.id)
-        .maybeSingle();
-
-      if (checkError && checkError.code !== 'PGRST116') {
-        console.error('Dashboard: Error checking existing profile:', checkError);
-        throw checkError;
-      }
-
-      if (existingProfile) {
-        console.log('Dashboard: Profile already exists, using existing profile:', existingProfile);
-        setProfile(existingProfile);
-        return;
-      }
-
-      // Profile doesn't exist, create new one
-      const { data, error } = await supabase
-        .from('user_profiles')
-        .insert([{
-          id: user.id,
-          email: user.email,
-          name: user.user_metadata?.name || null,
-          location: user.user_metadata?.country || null,
-          plan_type: 'free'
-        }])
-        .select()
-        .single();
-
-      if (error) {
-        console.error('Dashboard: Error creating initial profile:', error);
-        throw error;
-      } else {
-        console.log('Dashboard: Initial profile created:', data);
-        setProfile(data);
-      }
-    } catch (error) {
-      console.error('Dashboard: Error in createInitialProfile:', error);
     }
   };
 

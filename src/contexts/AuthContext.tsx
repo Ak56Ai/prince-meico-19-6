@@ -31,6 +31,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     // Get initial session
     supabase.auth.getSession().then(({ data: { session } }) => {
+      console.log('Initial session:', session?.user?.id);
       setSession(session);
       setUser(session?.user ?? null);
       setLoading(false);
@@ -40,20 +41,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         console.log('Auth state changed:', event, session?.user?.id);
-        setSession(session);
-        setUser(session?.user ?? null);
-        setLoading(false);
+        
+        // Only update state for actual auth events, not internal ones
+        if (event === 'SIGNED_IN' || event === 'SIGNED_OUT' || event === 'TOKEN_REFRESHED') {
+          setSession(session);
+          setUser(session?.user ?? null);
+          setLoading(false);
 
-        // Create user profile on sign up
-        if (event === 'SIGNED_UP' && session?.user) {
-          console.log('Creating user profile for new signup:', session.user);
-          await createUserProfile(session.user);
-        }
-
-        // Create user profile on sign in if it doesn't exist
-        if (event === 'SIGNED_IN' && session?.user) {
-          console.log('Checking/creating user profile for sign in:', session.user);
-          await ensureUserProfile(session.user);
+          // Handle profile creation/update only for sign up and sign in
+          if (event === 'SIGNED_UP' && session?.user) {
+            console.log('Creating user profile for new signup:', session.user.id);
+            await createUserProfile(session.user);
+          } else if (event === 'SIGNED_IN' && session?.user) {
+            console.log('Ensuring user profile exists for sign in:', session.user.id);
+            await ensureUserProfile(session.user);
+          }
         }
       }
     );
@@ -106,12 +108,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       if (error) {
         console.error('Error creating user profile:', error);
-        throw error;
+        // Don't throw error to prevent auth flow interruption
+        return;
       }
 
       console.log('User profile created successfully:', data);
     } catch (error) {
       console.error('Error in createUserProfile:', error);
+      // Don't throw error to prevent auth flow interruption
     }
   };
 
@@ -135,7 +139,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         console.log('Profile does not exist, creating one...');
         await createUserProfile(user);
       } else {
-        console.log('Profile exists:', existingProfile);
+        console.log('Profile exists:', existingProfile.id);
         
         // Update profile with any missing data from user metadata
         const updates: any = {};
@@ -170,6 +174,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     } catch (error) {
       console.error('Error in ensureUserProfile:', error);
+      // Don't throw error to prevent auth flow interruption
     }
   };
 
@@ -190,16 +195,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return { data, error };
       }
 
-      console.log('Signup successful:', data);
-
-      // If user is immediately confirmed (email confirmation disabled), create profile
-      if (data.user && !data.user.email_confirmed_at) {
-        console.log('User needs email confirmation');
-      } else if (data.user) {
-        console.log('User confirmed immediately, creating profile...');
-        await createUserProfile(data.user);
-      }
-
+      console.log('Signup successful:', data.user?.id);
       return { data, error };
     } catch (error) {
       console.error('Error in signUp:', error);
@@ -221,7 +217,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return { data, error };
       }
 
-      console.log('Signin successful:', data);
+      console.log('Signin successful:', data.user?.id);
       return { data, error };
     } catch (error) {
       console.error('Error in signIn:', error);
@@ -231,10 +227,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const signOut = async () => {
     try {
-      console.log('Signing out user');
+      console.log('Manually signing out user');
       const { error } = await supabase.auth.signOut();
       if (error) throw error;
-      console.log('Signout successful');
+      console.log('Manual signout successful');
     } catch (error) {
       console.error('Error signing out:', error);
       throw error;

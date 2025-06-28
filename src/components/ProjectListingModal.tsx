@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { X, AlertCircle } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
@@ -42,8 +42,22 @@ const ProjectListingModal: React.FC<ProjectListingModalProps> = ({ isOpen, onClo
     icoEndDate: '',
     launchPrice: '',
     comments: '',
-    tokenAddress: '' // Added token_address field
+    tokenAddress: ''
   });
+
+  // Disable body scroll when modal is open
+  useEffect(() => {
+    if (isOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = 'unset';
+    }
+
+    // Cleanup function to restore scroll when component unmounts
+    return () => {
+      document.body.style.overflow = 'unset';
+    };
+  }, [isOpen]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
@@ -122,7 +136,7 @@ const ProjectListingModal: React.FC<ProjectListingModalProps> = ({ isOpen, onClo
         ico_end_date: formData.icoEndDate,
         launch_price: formData.launchPrice,
         comments: formData.comments,
-        token_address: formData.tokenAddress // Added token_address field
+        token_address: formData.tokenAddress
       };
 
       console.log('Project data to insert:', projectData);

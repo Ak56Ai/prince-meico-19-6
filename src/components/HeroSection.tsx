@@ -1,35 +1,84 @@
 import React, { useState, useEffect } from 'react';
 import { ArrowRight } from 'lucide-react';
 import ProjectListingModal from './ProjectListingModal';
+import { supabase } from '../lib/supabase';
+
+interface HeroAd {
+  id: string;
+  image_url: string;
+  title: string;
+  tagline: string;
+  is_active: boolean;
+  display_order: number;
+}
 
 const HeroSection: React.FC = () => {
   const [currentSlide, setCurrentSlide] = useState(0);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const slides = [
+  const [heroAds, setHeroAds] = useState<HeroAd[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  // Fallback slides if database fails
+  const fallbackSlides = [
     {
       title: "Unlock the Future of Crypto Investing in ICO!",
-      description: "Discover, invest, and grow with exclusive ICO opportunities on all L1 and L2 networks. Fast, secure, and rewarding – join the next wave of blockchain innovation.",
+      tagline: "Discover, invest, and grow with exclusive ICO opportunities on all L1 and L2 networks. Fast, secure, and rewarding – join the next wave of blockchain innovation.",
       bgImage: "https://kufggdtvwplpngdlirpt.supabase.co/storage/v1/object/sign/hero/Under%20the%20Lake.jpg?token=eyJraWQiOiJzdG9yYWdlLXVybC1zaWduaW5nLWtleV8xM2E2NzY1Yy0xNGM1LTRjZWUtYjU4ZC0wMWEzYTNlOTdmODAiLCJhbGciOiJIUzI1NiJ9.eyJ1cmwiOiJoZXJvL1VuZGVyIHRoZSBMYWtlLmpwZyIsImlhdCI6MTc1MDMyMTg0MiwiZXhwIjoxNzgxODU3ODQyfQ.LLUCYFFLx-M_Vm9Aw6O6X9P3EMAsiDfZcsxyMQfoOvc"
     },
     {
       title: "Launch Your Next Big Idea on Any EVM Chain!",
-      description: "Seamlessly create, manage, and participate in ICOs across all EVM-compatible blockchains like Ethereum, Polygon, Binance Smart Chain, and more.",
+      tagline: "Seamlessly create, manage, and participate in ICOs across all EVM-compatible blockchains like Ethereum, Polygon, Binance Smart Chain, and more.",
       bgImage: "https://kufggdtvwplpngdlirpt.supabase.co/storage/v1/object/sign/hero/Mauve.jpg?token=eyJraWQiOiJzdG9yYWdlLXVybC1zaWduaW5nLWtleV8xM2E2NzY1Yy0xNGM1LTRjZWUtYjU4ZC0wMWEzYTNlOTdmODAiLCJhbGciOiJIUzI1NiJ9.eyJ1cmwiOiJoZXJvL01hdXZlLmpwZyIsImlhdCI6MTc1MDMyMTk1NywiZXhwIjoxNzgxODU3OTU3fQ.Qp5zxnPOj8yC6TBb61ybBBISZHSnZ15YWySX-sBNEt0"
     },
     {
       title: "Your Gateway to ICOs Across All EVM Chains!",
-      description: "Build, launch, and invest in ICOs effortlessly on Ethereum, Binance Smart Chain, Polygon, and beyond. One platform. Unlimited possibilities.",
+      tagline: "Build, launch, and invest in ICOs effortlessly on Ethereum, Binance Smart Chain, Polygon, and beyond. One platform. Unlimited possibilities.",
       bgImage: "https://kufggdtvwplpngdlirpt.supabase.co/storage/v1/object/sign/hero/Under%20the%20Lake.jpg?token=eyJraWQiOiJzdG9yYWdlLXVybC1zaWduaW5nLWtleV8xM2E2NzY1Yy0xNGM1LTRjZWUtYjU4ZC0wMWEzYTNlOTdmODAiLCJhbGciOiJIUzI1NiJ9.eyJ1cmwiOiJoZXJvL1VuZGVyIHRoZSBMYWtlLmpwZyIsImlhdCI6MTc1MDMyMTk3NiwiZXhwIjoxNzgxODU3OTc2fQ.raKCH04eqBLJq8Ff89s5WjrC1TupBM7bFiMz1DPucPc"
     }
   ];
 
   useEffect(() => {
+    fetchHeroAds();
+  }, []);
+
+  useEffect(() => {
+    const slides = heroAds.length > 0 ? heroAds : fallbackSlides;
     const timer = setInterval(() => {
       setCurrentSlide((prev) => (prev + 1) % slides.length);
     }, 6000);
     
     return () => clearInterval(timer);
-  }, [slides.length]);
+  }, [heroAds]);
+
+  const fetchHeroAds = async () => {
+    try {
+      setLoading(true);
+      const { data, error } = await supabase
+        .from('hero_ads')
+        .select('*')
+        .eq('is_active', true)
+        .order('display_order', { ascending: true });
+
+      if (error) {
+        console.error('Error fetching hero ads:', error);
+        setHeroAds([]);
+      } else {
+        setHeroAds(data || []);
+      }
+    } catch (error) {
+      console.error('Error fetching hero ads:', error);
+      setHeroAds([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Use hero ads if available, otherwise fallback to default slides
+  const slides = heroAds.length > 0 ? heroAds.map(ad => ({
+    title: ad.title,
+    tagline: ad.tagline,
+    bgImage: ad.image_url
+  })) : fallbackSlides;
 
   return (
     <section className="relative min-h-screen flex items-center overflow-hidden bg-custom-dark z-10">
@@ -81,7 +130,7 @@ const HeroSection: React.FC = () => {
                 ))}
               </h1>
               <p className="text-xl text-dark-text/80 mb-8">
-                {slide.description}
+                {slide.tagline}
               </p>
             </div>
           ))}

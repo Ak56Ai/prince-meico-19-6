@@ -15,6 +15,7 @@ const DetailedPricing: React.FC = () => {
       title: 'Base Plan',
       price: 'FREE',
       icon: '📋',
+      planType: null,
       features: [
         { text: 'Standard project listing on our platform.', included: true },
         { text: 'Visibility in the general ICO directory.', included: true },
@@ -123,9 +124,14 @@ const DetailedPricing: React.FC = () => {
                     <div className="px-6 pb-8 pt-4">
                       <button 
                         onClick={() => handleGetNow(plan)}
-                        className="block w-full py-3 px-4 text-center rounded-full bg-gradient-to-r from-purple-600 to-blue-500 text-white font-medium transition-all hover:from-purple-700 hover:to-blue-600 transform hover:scale-[1.02]"
+                        disabled={!plan.planType}
+                        className={`block w-full py-3 px-4 text-center rounded-full font-medium transition-all transform hover:scale-[1.02] ${
+                          plan.planType 
+                            ? 'bg-gradient-to-r from-purple-600 to-blue-500 text-white hover:from-purple-700 hover:to-blue-600' 
+                            : 'bg-gray-300 dark:bg-gray-600 text-gray-500 dark:text-gray-400 cursor-not-allowed'
+                        }`}
                       >
-                        Get Now
+                        {plan.planType ? 'Get Now' : 'Current Plan'}
                       </button>
                     </div>
                   </div>

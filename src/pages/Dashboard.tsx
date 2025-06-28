@@ -89,8 +89,8 @@ const Dashboard = () => {
         console.log('Dashboard: Profile found:', profileData);
         setProfile(profileData);
       } else {
-        console.log('Dashboard: No profile found, will create one if needed');
-        // Don't automatically create profile here, let the auth context handle it
+        console.log('Dashboard: No profile found');
+        // Profile will be created by auth context
       }
 
       // Fetch user projects (using email since we don't have wallet_address anymore)

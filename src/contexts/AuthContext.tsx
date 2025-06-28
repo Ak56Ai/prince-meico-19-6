@@ -42,20 +42,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       async (event, session) => {
         console.log('Auth state changed:', event, session?.user?.id);
         
-        // Only update state for actual auth events, not internal ones
-        if (event === 'SIGNED_IN' || event === 'SIGNED_OUT' || event === 'TOKEN_REFRESHED') {
-          setSession(session);
-          setUser(session?.user ?? null);
-          setLoading(false);
+        // Update state for all auth events
+        setSession(session);
+        setUser(session?.user ?? null);
+        setLoading(false);
 
-          // Handle profile creation/update only for sign up and sign in
-          if (event === 'SIGNED_UP' && session?.user) {
-            console.log('Creating user profile for new signup:', session.user.id);
-            await createUserProfile(session.user);
-          } else if (event === 'SIGNED_IN' && session?.user) {
-            console.log('Ensuring user profile exists for sign in:', session.user.id);
-            await ensureUserProfile(session.user);
-          }
+        // Handle profile creation/update only for specific events
+        if (event === 'SIGNED_UP' && session?.user) {
+          console.log('Creating user profile for new signup:', session.user.id);
+          await createUserProfile(session.user);
+        } else if (event === 'SIGNED_IN' && session?.user) {
+          console.log('Ensuring user profile exists for sign in:', session.user.id);
+          await ensureUserProfile(session.user);
         }
       }
     );

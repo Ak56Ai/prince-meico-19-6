@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Calendar, Tag, Globe, ExternalLink, Eye, Clock, TrendingUp, RefreshCw } from 'lucide-react';
+import { Calendar, Tag, Globe, ExternalLink, Eye, Clock, TrendingUp, RefreshCw, AlertCircle } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 
 interface FeaturedProject {
@@ -26,6 +26,7 @@ const PricingPlans: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [lastFetchTime, setLastFetchTime] = useState<Date | null>(null);
+  const [debugInfo, setDebugInfo] = useState<any>(null);
 
   // Fetch data only on component mount (page load/refresh)
   useEffect(() => {
@@ -39,7 +40,22 @@ const PricingPlans: React.FC = () => {
       
       console.log('🔄 Fetching featured projects from database...');
 
-      // First, try to get featured projects from the featured_projects table
+      // Test basic connection first
+      console.log('🔍 Testing basic database connection...');
+      const { data: testData, error: testError } = await supabase
+        .from('ico_projects')
+        .select('count')
+        .limit(1);
+      
+      console.log('📊 Connection test result:', { testData, testError });
+
+      if (testError) {
+        console.error('❌ Basic connection failed:', testError);
+        throw new Error(`Database connection failed: ${testError.message}`);
+      }
+
+      // Try to get featured projects from the featured_projects table
+      console.log('🎯 Querying featured_projects table...');
       const { data: featuredData, error: featuredError } = await supabase
         .from('featured_projects')
         .select(`
@@ -66,10 +82,17 @@ const PricingPlans: React.FC = () => {
         .order('display_order', { ascending: true })
         .limit(3);
 
-      console.log('📊 Featured projects query result:', { featuredData, featuredError });
+      console.log('📈 Featured projects query result:', { featuredData, featuredError });
 
-      if (featuredError || !featuredData || featuredData.length === 0) {
-        console.log('⚠️ Featured projects table query failed or empty, trying direct projects query...');
+      // Store debug info
+      setDebugInfo({
+        featuredQuery: { data: featuredData, error: featuredError },
+        timestamp: new Date().toISOString()
+      });
+
+      if (featuredError) {
+        console.log('⚠️ Featured projects query failed:', featuredError);
+        console.log('🔄 Trying direct projects query as fallback...');
         
         // Fallback: Get 3 most recent active projects directly
         const { data: recentData, error: recentError } = await supabase
@@ -90,7 +113,7 @@ const PricingPlans: React.FC = () => {
           console.log('✅ Using recent projects as featured:', recentData);
           setFeaturedProjects(recentData);
         } else {
-          console.log('📝 No projects found, using sample data...');
+          console.log('📝 No projects found in database, using sample data...');
           // Use sample data if no projects exist
           const sampleProjects: FeaturedProject[] = [
             {
@@ -147,6 +170,29 @@ const PricingPlans: React.FC = () => {
           ];
           setFeaturedProjects(sampleProjects);
         }
+      } else if (!featuredData || featuredData.length === 0) {
+        console.log('📝 Featured projects table is empty, using sample data...');
+        // Use sample data if featured table is empty
+        const sampleProjects: FeaturedProject[] = [
+          {
+            id: 'sample-1',
+            name: 'DeFi Revolution',
+            description: 'Revolutionary decentralized finance platform bringing innovative solutions to the blockchain ecosystem.',
+            image_url: 'https://images.pexels.com/photos/8370752/pexels-photo-8370752.jpeg?auto=compress&cs=tinysrgb&w=800',
+            status: 'active',
+            website_url: 'https://example.com',
+            launch_date: '2024-12-31',
+            ticker: 'DEFI',
+            tags: 'DeFi, Yield Farming',
+            network: 'ETH',
+            ico_start_date: '2024-01-01',
+            ico_end_date: '2024-12-31',
+            launch_price: '0.001 ETH',
+            project_details: 'Advanced DeFi platform',
+            token_address: '0x742d35Cc6634C0532925a3b8D4C9db96590b5c8e'
+          }
+        ];
+        setFeaturedProjects(sampleProjects);
       } else {
         // Extract projects from the joined data
         const projects = featuredData
@@ -161,9 +207,9 @@ const PricingPlans: React.FC = () => {
       setLastFetchTime(new Date());
       console.log('✅ Featured projects loaded successfully at:', new Date().toLocaleTimeString());
 
-    } catch (err) {
+    } catch (err: any) {
       console.error('💥 Error fetching featured projects:', err);
-      setError('Failed to load featured projects');
+      setError(`Failed to load featured projects: ${err.message || 'Unknown error'}`);
       
       // Even on error, show sample data
       const fallbackProjects: FeaturedProject[] = [
@@ -194,6 +240,7 @@ const PricingPlans: React.FC = () => {
   // Manual refresh function (optional - for future use)
   const handleManualRefresh = () => {
     console.log('🔄 Manual refresh triggered by user');
+    setLoading(true);
     fetchFeaturedProjects();
   };
 
@@ -242,7 +289,7 @@ const PricingPlans: React.FC = () => {
             <div className="text-center">
               <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-purple-500 mx-auto mb-4"></div>
               <p className="text-gray-600 dark:text-gray-400">Loading featured projects...</p>
-              <p className="text-sm text-gray-500 dark:text-gray-500 mt-2">Fetching data from database...</p>
+              <p className="text-sm text-gray-500 dark:text-gray-500 mt-2">Connecting to database...</p>
             </div>
           </div>
         </div>
@@ -264,15 +311,20 @@ const PricingPlans: React.FC = () => {
           </p>
           
           {/* Data fetch info */}
-          <div className="mt-4 flex items-center justify-center space-x-4 text-sm text-gray-500 dark:text-gray-400">
-            <span>📊 Data loaded from database</span>
+          <div className="mt-4 flex flex-wrap items-center justify-center gap-4 text-sm text-gray-500 dark:text-gray-400">
+            <span className="flex items-center">
+              <TrendingUp className="w-4 h-4 mr-1" />
+              Data loaded from database
+            </span>
             {lastFetchTime && (
-              <span>⏰ Last updated: {lastFetchTime.toLocaleTimeString()}</span>
+              <span className="flex items-center">
+                ⏰ Last updated: {lastFetchTime.toLocaleTimeString()}
+              </span>
             )}
             <button
               onClick={handleManualRefresh}
               disabled={loading}
-              className="flex items-center px-3 py-1 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 rounded-lg transition-colors"
+              className="flex items-center px-3 py-1 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 rounded-lg transition-colors disabled:opacity-50"
               title="Refresh data from database"
             >
               <RefreshCw className={`w-3 h-3 mr-1 ${loading ? 'animate-spin' : ''}`} />
@@ -281,11 +333,26 @@ const PricingPlans: React.FC = () => {
           </div>
           
           {error && (
-            <div className="mt-4 p-3 bg-yellow-100 dark:bg-yellow-900/20 border border-yellow-300 dark:border-yellow-700 rounded-lg">
-              <p className="text-yellow-800 dark:text-yellow-200 text-sm">
-                ⚠️ {error} - Showing sample data
-              </p>
+            <div className="mt-4 p-4 bg-yellow-100 dark:bg-yellow-900/20 border border-yellow-300 dark:border-yellow-700 rounded-lg">
+              <div className="flex items-center justify-center">
+                <AlertCircle className="w-5 h-5 text-yellow-600 dark:text-yellow-400 mr-2" />
+                <p className="text-yellow-800 dark:text-yellow-200 text-sm">
+                  {error} - Showing sample data
+                </p>
+              </div>
             </div>
+          )}
+
+          {/* Debug info (only in development) */}
+          {debugInfo && process.env.NODE_ENV === 'development' && (
+            <details className="mt-4 text-left">
+              <summary className="cursor-pointer text-sm text-gray-500 dark:text-gray-400">
+                🔍 Debug Information (Click to expand)
+              </summary>
+              <pre className="mt-2 p-3 bg-gray-100 dark:bg-gray-800 rounded text-xs overflow-auto">
+                {JSON.stringify(debugInfo, null, 2)}
+              </pre>
+            </details>
           )}
         </div>
         

@@ -6,8 +6,6 @@ interface AuthContextType {
   user: User | null;
   session: Session | null;
   loading: boolean;
-  isAdmin: boolean;
-  adminRole: string | null;
   signUp: (email: string, password: string, userData?: any) => Promise<any>;
   signIn: (email: string, password: string) => Promise<any>;
   signOut: () => Promise<void>;
@@ -29,12 +27,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
-  const [isAdmin, setIsAdmin] = useState(false);
-  const [adminRole, setAdminRole] = useState<string | null>(null);
-
-  // Admin user configuration (fallback method)
-  const ADMIN_USER_ID = 'c4506c4a-ed56-43a2-8a74-da42c0131b7c';
-  const ADMIN_EMAIL = 'govindsingh747@gmail.com';
 
   useEffect(() => {
     // Get initial session
@@ -42,7 +34,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       console.log('Initial session:', session?.user?.id);
       setSession(session);
       setUser(session?.user ?? null);
-      checkAdminStatus(session?.user);
       setLoading(false);
     });
 
@@ -54,7 +45,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         // Update state for all auth events
         setSession(session);
         setUser(session?.user ?? null);
-        checkAdminStatus(session?.user);
         setLoading(false);
 
         // Handle profile creation/update only for specific events
@@ -70,46 +60,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     return () => subscription.unsubscribe();
   }, []);
-
-  const checkAdminStatus = async (user: User | null) => {
-    if (!user) {
-      setIsAdmin(false);
-      setAdminRole(null);
-      return;
-    }
-
-    try {
-      // First check if admin_roles table exists and query it
-      const { data: adminData, error } = await supabase
-        .from('admin_roles')
-        .select('role, is_active')
-        .eq('user_id', user.id)
-        .eq('is_active', true)
-        .single();
-
-      if (!error && adminData) {
-        // User found in admin_roles table
-        console.log('Admin status from database:', adminData);
-        setIsAdmin(true);
-        setAdminRole(adminData.role);
-        return;
-      }
-    } catch (error) {
-      console.log('Admin roles table not available, using fallback method');
-    }
-
-    // Fallback to hardcoded admin check
-    const isUserAdmin = user.id === ADMIN_USER_ID || user.email === ADMIN_EMAIL;
-    console.log('Checking admin status (fallback):', {
-      userId: user.id,
-      userEmail: user.email,
-      isAdmin: isUserAdmin,
-      adminId: ADMIN_USER_ID,
-      adminEmail: ADMIN_EMAIL
-    });
-    setIsAdmin(isUserAdmin);
-    setAdminRole(isUserAdmin ? 'super_admin' : null);
-  };
 
   const createUserProfile = async (user: User) => {
     try {
@@ -279,8 +229,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const { error } = await supabase.auth.signOut();
       if (error) throw error;
       console.log('Manual signout successful');
-      setIsAdmin(false);
-      setAdminRole(null);
     } catch (error) {
       console.error('Error signing out:', error);
       throw error;
@@ -334,8 +282,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     user,
     session,
     loading,
-    isAdmin,
-    adminRole,
     signUp,
     signIn,
     signOut,

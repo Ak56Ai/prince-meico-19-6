@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { Menu, X, ChevronDown, User, LogOut, Shield } from 'lucide-react';
+import { Menu, X, ChevronDown, User, LogOut } from 'lucide-react';
 import { ThemeToggle } from './ThemeToggle';
 import LoginModal from './auth/LoginModal';
 import { useAuth } from '../contexts/AuthContext';
@@ -14,7 +14,7 @@ const Header: React.FC = () => {
   const [loginMode, setLoginMode] = useState<'signin' | 'signup' | 'forgot'>('signin');
   
   const location = useLocation();
-  const { user, signOut, loading, isAdmin } = useAuth();
+  const { user, signOut, loading } = useAuth();
 
   useEffect(() => {
     const handleScroll = () => {
@@ -153,7 +153,6 @@ const Header: React.FC = () => {
                       onClick={() => setUserDropdownOpen(!userDropdownOpen)}
                       className="flex items-center px-4 py-2 rounded-full bg-dark-button hover:bg-dark-button/80 text-dark-text font-medium transition-all"
                     >
-                      {isAdmin && <Shield className="w-4 h-4 mr-2 text-yellow-400" />}
                       <User className="w-4 h-4 mr-2" />
                       {user.user_metadata?.name || user.email?.split('@')[0] || 'User'}
                       <ChevronDown className="w-4 h-4 ml-2" />
@@ -174,16 +173,6 @@ const Header: React.FC = () => {
                             >
                               Dashboard
                             </Link>
-                            {isAdmin && (
-                              <Link
-                                to="/admin"
-                                className="flex items-center px-4 py-2 text-sm text-yellow-400 hover:bg-dark-accent1/10"
-                                onClick={() => setUserDropdownOpen(false)}
-                              >
-                                <Shield className="w-4 h-4 mr-2" />
-                                Admin Panel
-                              </Link>
-                            )}
                             <button
                               onClick={handleSignOut}
                               className="flex items-center w-full px-4 py-2 text-sm text-dark-accent2 hover:bg-dark-accent1/10 transition-colors"
@@ -270,15 +259,6 @@ const Header: React.FC = () => {
                 >
                   Dashboard
                 </Link>
-                {isAdmin && (
-                  <Link
-                    to="/admin"
-                    className="flex items-center py-2 text-yellow-400"
-                  >
-                    <Shield className="w-4 h-4 mr-2" />
-                    Admin Panel
-                  </Link>
-                )}
                 <button
                   onClick={handleSignOut}
                   className="block w-full text-left py-2 text-dark-accent2"

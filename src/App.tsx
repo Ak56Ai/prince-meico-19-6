@@ -25,7 +25,6 @@ import Disclaimer from './pages/Disclaimer';
 import Sitemap from './pages/Sitemap';
 import Career from './pages/Career';
 import Dashboard from './pages/Dashboard';
-import AdminDashboard from './pages/AdminDashboard';
 import ProjectDetail from './pages/ProjectDetail';
 import TokenDetail from './pages/TokenDetail';
 import ParticleBackground from './components/ParticleBackground';
@@ -71,7 +70,6 @@ function App() {
                 <Route path="/sitemap" element={<Sitemap />} />
                 <Route path="/career" element={<Career />} />
                 <Route path="/dashboard" element={<Dashboard />} />
-                <Route path="/admin" element={<AdminDashboard />} />
                 <Route path="/networks/:network" element={<NetworkIcoPage />} />
               </Routes>
             </main>

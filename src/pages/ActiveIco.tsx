@@ -1,144 +1,22 @@
 import React, { useEffect, useState } from 'react';
-import { ChevronLeft, ChevronRight, RefreshCw, AlertCircle } from 'lucide-react';
-import { supabase, testConnection } from '../lib/supabase';
+import { ChevronLeft, ChevronRight, RefreshCw } from 'lucide-react';
+import { useData } from '../contexts/DataContext';
 import IcoCard from '../components/IcoCard';
 
-interface IcoProject {
-  id: string;
-  name: string;
-  description: string;
-  image_url: string;
-  status: 'active' | 'upcoming' | 'completed';
-  website_url: string;
-  whitepaper_url: string;
-  launch_date: string;
-  ticker: string;
-  tags: string;
-  block_explorer: string;
-  twitter: string;
-  telegram: string;
-  facebook: string;
-  linkedin: string;
-  token_address: string;
-}
-
 const ActiveIco = () => {
-  const [projects, setProjects] = useState<IcoProject[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const { projects, projectsLoading, refreshProjects } = useData();
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(20);
-  const [totalProjects, setTotalProjects] = useState(0);
-  const [connectionStatus, setConnectionStatus] = useState<boolean | null>(null);
 
-  useEffect(() => {
-    checkConnection();
-    fetchProjects();
-  }, [currentPage, itemsPerPage]);
-
-  const checkConnection = async () => {
-    console.log('🔍 Checking database connection...');
-    const isConnected = await testConnection();
-    setConnectionStatus(isConnected);
-    if (!isConnected) {
-      setError('❌ Database connection failed. Please check your configuration.');
-    }
-  };
-
-  const fetchProjects = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      
-      console.log('📊 Fetching projects from database...');
-      
-      // Test connection first
-      const { data: testData, error: testError } = await supabase
-        .from('ico_projects')
-        .select('count')
-        .limit(1);
-      
-      if (testError) {
-        console.error('❌ Connection test failed:', testError);
-        throw new Error(`Database connection failed: ${testError.message}`);
-      }
-      
-      // Get total count first
-      const { count, error: countError } = await supabase
-        .from('ico_projects')
-        .select('*', { count: 'exact', head: true });
-
-      if (countError) {
-        console.error('❌ Error getting count:', countError);
-        throw countError;
-      }
-
-      console.log('📈 Total projects count:', count);
-      setTotalProjects(count || 0);
-
-      // Get paginated data
-      const from = (currentPage - 1) * itemsPerPage;
-      const to = from + itemsPerPage - 1;
-
-      console.log('📄 Fetching projects with pagination:', { from, to });
-
-      const { data, error } = await supabase
-        .from('ico_projects')
-        .select('*')
-        .order('created_at', { ascending: false })
-        .range(from, to);
-
-      if (error) {
-        console.error('❌ Error fetching projects:', error);
-        throw error;
-      }
-
-      console.log('✅ Fetched projects:', data);
-      
-      if (!data || data.length === 0) {
-        console.log('⚠️ No projects found in database, creating sample data...');
-        
-        // Insert sample project if none exist
-        const sampleProject = {
-          name: 'Sample ICO Project',
-          description: 'This is a sample ICO project to demonstrate the platform functionality. It showcases how projects are displayed and managed within the system.',
-          status: 'active',
-          website_url: 'https://example.com',
-          ticker: 'SAMPLE',
-          tags: 'DeFi, Sample, Demo',
-          network: 'ETH',
-          launch_price: '0.001 ETH',
-          token_address: '0x742d35Cc6634C0532925a3b8D4C9db96590b5c8e'
-        };
-        
-        const { data: insertedData, error: insertError } = await supabase
-          .from('ico_projects')
-          .insert([sampleProject])
-          .select();
-        
-        if (insertError) {
-          console.error('❌ Error inserting sample project:', insertError);
-          setProjects([]);
-        } else {
-          console.log('✅ Sample project inserted:', insertedData);
-          setProjects(insertedData || []);
-          setTotalProjects(1);
-        }
-      } else {
-        setProjects(data);
-      }
-      
-      setConnectionStatus(true);
-    } catch (err: any) {
-      console.error('💥 Error in fetchProjects:', err);
-      setError(`Failed to load projects: ${err.message || 'Unknown error'}`);
-      setConnectionStatus(false);
-    } finally {
-      setLoading(false);
-    }
-  };
-
+  const totalProjects = projects.length;
   const totalPages = Math.ceil(totalProjects / itemsPerPage);
+
+  // Get current page projects
+  const getCurrentPageProjects = () => {
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    const endIndex = startIndex + itemsPerPage;
+    return projects.slice(startIndex, endIndex);
+  };
 
   const handlePageChange = (page: number) => {
     setCurrentPage(page);
@@ -177,39 +55,7 @@ const ActiveIco = () => {
     return pages;
   };
 
-  if (error) {
-    return (
-      <div className="min-h-screen bg-white dark:bg-gradient-to-b dark:from-gray-900 dark:to-black pt-24">
-        <div className="container mx-auto px-4 text-center">
-          <div className="max-w-md mx-auto">
-            <div className="relative group">
-              <div className="absolute inset-0 bg-gradient-to-r from-red-600/20 to-orange-600/20 rounded-2xl blur-xl opacity-80"></div>
-              
-              <div className="relative rounded-2xl p-1">
-                <div className="rounded-xl bg-gray-50 dark:bg-gray-800/90 backdrop-blur-sm border border-gray-200 dark:border-white/10 p-8">
-                  <AlertCircle className="w-16 h-16 text-red-500 mx-auto mb-4" />
-                  <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-4">Database Connection Issue</h3>
-                  <p className="text-red-600 dark:text-red-400 mb-4">{error}</p>
-                  <div className="space-y-4">
-                    <button 
-                      onClick={fetchProjects}
-                      className="flex items-center justify-center w-full px-4 py-2 bg-purple-600 rounded-lg hover:bg-purple-700 text-white transition-colors"
-                    >
-                      <RefreshCw className="w-4 h-4 mr-2" />
-                      Retry Connection
-                    </button>
-                    <div className="text-sm text-gray-600 dark:text-gray-400">
-                      Connection Status: {connectionStatus === null ? '🔍 Testing...' : connectionStatus ? '✅ Connected' : '❌ Failed'}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
+  const currentPageProjects = getCurrentPageProjects();
 
   return (
     <div className="min-h-screen bg-white dark:bg-gradient-to-b dark:from-gray-900 dark:to-black pt-24">
@@ -222,11 +68,6 @@ const ActiveIco = () => {
             Discover and invest in the most promising blockchain projects.
             Our curated list of active ICOs represents the future of decentralized innovation.
           </p>
-          <div className="mt-4 text-sm">
-            <span className={`${connectionStatus === null ? 'text-yellow-600 dark:text-yellow-400' : connectionStatus ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
-              Database Status: {connectionStatus === null ? '🔍 Checking...' : connectionStatus ? '✅ Connected' : '❌ Disconnected'}
-            </span>
-          </div>
         </div>
 
         {/* Controls */}
@@ -249,11 +90,11 @@ const ActiveIco = () => {
           
           <div className="flex items-center space-x-4">
             <button
-              onClick={fetchProjects}
-              disabled={loading}
+              onClick={refreshProjects}
+              disabled={projectsLoading}
               className="flex items-center px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-colors disabled:opacity-50"
             >
-              <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+              <RefreshCw className={`w-4 h-4 mr-2 ${projectsLoading ? 'animate-spin' : ''}`} />
               Refresh
             </button>
             <div className="text-gray-600 dark:text-gray-400">
@@ -262,18 +103,17 @@ const ActiveIco = () => {
           </div>
         </div>
 
-        {loading ? (
+        {projectsLoading ? (
           <div className="flex justify-center items-center min-h-[400px]">
             <div className="text-center">
               <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-purple-500 mx-auto mb-4"></div>
               <p className="text-gray-600 dark:text-gray-400">Loading projects...</p>
-              <p className="text-sm text-gray-500 dark:text-gray-500 mt-2">Connecting to database...</p>
             </div>
           </div>
-        ) : projects.length > 0 ? (
+        ) : currentPageProjects.length > 0 ? (
           <>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 mb-12">
-              {projects.map((project) => (
+              {currentPageProjects.map((project) => (
                 <IcoCard key={project.id} project={project} />
               ))}
             </div>
@@ -326,10 +166,10 @@ const ActiveIco = () => {
                 <div className="rounded-xl bg-gray-50 dark:bg-gray-800/90 backdrop-blur-sm border border-gray-200 dark:border-white/10 p-12">
                   <h3 className="text-2xl text-gray-600 dark:text-gray-400 mb-4">No ICO projects found</h3>
                   <p className="text-gray-500 dark:text-gray-500 mb-6">
-                    {totalProjects === 0 ? 'Be the first to submit a project!' : 'Check back soon for new opportunities!'}
+                    Check back soon for new opportunities!
                   </p>
                   <button
-                    onClick={fetchProjects}
+                    onClick={refreshProjects}
                     className="px-6 py-3 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-colors"
                   >
                     Refresh Projects

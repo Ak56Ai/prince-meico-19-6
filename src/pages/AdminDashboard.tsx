@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Shield, Users, CreditCard, CheckCircle, X, AlertCircle, Crown, Star, RefreshCw, Eye, Calendar } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
+import { useData } from '../contexts/DataContext';
 
 interface PlanPurchase {
   id: string;
@@ -34,10 +35,11 @@ interface UserProfile {
 
 const AdminDashboard = () => {
   const { user, isAdmin } = useAuth();
+  const { refreshAllData } = useData();
   const [activeTab, setActiveTab] = useState('purchases');
   const [purchases, setPurchases] = useState<PlanPurchase[]>([]);
   const [users, setUsers] = useState<UserProfile[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [processing, setProcessing] = useState<string | null>(null);
   const [message, setMessage] = useState('');
   const [messageType, setMessageType] = useState<'success' | 'error'>('success');
@@ -139,6 +141,7 @@ const AdminDashboard = () => {
 
       // Refresh data
       await fetchAdminData();
+      await refreshAllData(); // Refresh cached data
 
       setTimeout(() => setMessage(''), 3000);
     } catch (error) {

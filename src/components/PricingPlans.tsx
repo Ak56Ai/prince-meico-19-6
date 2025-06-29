@@ -34,6 +34,8 @@ const PricingPlans: React.FC = () => {
     try {
       setLoading(true);
       setError(null);
+      
+      console.log('Fetching featured projects...');
 
       // First, try to get featured projects from the featured_projects table
       const { data: featuredData, error: featuredError } = await supabase
@@ -62,10 +64,12 @@ const PricingPlans: React.FC = () => {
         .order('display_order', { ascending: true })
         .limit(3);
 
+      console.log('Featured projects query result:', { featuredData, featuredError });
+
       if (featuredError) {
-        console.log('Featured projects table not found or empty, falling back to recent projects');
+        console.log('Featured projects table query failed, trying direct projects query...');
         
-        // Fallback: Get 3 most recent active projects
+        // Fallback: Get 3 most recent active projects directly
         const { data: recentData, error: recentError } = await supabase
           .from('ico_projects')
           .select('*')
@@ -73,7 +77,13 @@ const PricingPlans: React.FC = () => {
           .order('created_at', { ascending: false })
           .limit(3);
 
-        if (recentError) throw recentError;
+        console.log('Direct projects query result:', { recentData, recentError });
+
+        if (recentError) {
+          console.error('Direct projects query failed:', recentError);
+          throw recentError;
+        }
+        
         setFeaturedProjects(recentData || []);
       } else {
         // Extract projects from the joined data
@@ -81,6 +91,7 @@ const PricingPlans: React.FC = () => {
           ?.map(item => item.ico_projects)
           .filter(project => project !== null) as FeaturedProject[];
         
+        console.log('Extracted featured projects:', projects);
         setFeaturedProjects(projects || []);
       }
     } catch (err) {
@@ -133,7 +144,10 @@ const PricingPlans: React.FC = () => {
           </div>
           
           <div className="flex justify-center items-center min-h-[300px]">
-            <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-purple-500"></div>
+            <div className="text-center">
+              <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-purple-500 mx-auto mb-4"></div>
+              <p className="text-gray-600 dark:text-gray-400">Loading featured projects...</p>
+            </div>
           </div>
         </div>
       </section>
@@ -144,13 +158,23 @@ const PricingPlans: React.FC = () => {
     return (
       <section className="py-20 relative overflow-hidden bg-white dark:bg-gray-900">
         <div className="container mx-auto px-4 text-center">
-          <p className="text-red-600 dark:text-red-400 mb-4">{error}</p>
-          <button
-            onClick={fetchFeaturedProjects}
-            className="px-6 py-3 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-colors"
-          >
-            Retry
-          </button>
+          <div className="max-w-md mx-auto">
+            <div className="relative group">
+              <div className="absolute inset-0 bg-gradient-to-r from-red-600/20 to-orange-600/20 rounded-2xl blur-xl opacity-80"></div>
+              
+              <div className="relative rounded-2xl p-1">
+                <div className="rounded-xl bg-gray-50 dark:bg-gray-800/90 backdrop-blur-sm border border-gray-200 dark:border-white/10 p-8">
+                  <p className="text-red-600 dark:text-red-400 mb-4">{error}</p>
+                  <button
+                    onClick={fetchFeaturedProjects}
+                    className="px-6 py-3 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-colors"
+                  >
+                    Retry
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       </section>
     );

@@ -19,6 +19,7 @@ interface IcoProject {
   telegram: string;
   facebook: string;
   linkedin: string;
+  token_address: string;
 }
 
 const ActiveIco = () => {
@@ -36,6 +37,7 @@ const ActiveIco = () => {
   }, [currentPage, itemsPerPage]);
 
   const checkConnection = async () => {
+    console.log('Checking database connection...');
     const isConnected = await testConnection();
     setConnectionStatus(isConnected);
     if (!isConnected) {
@@ -153,7 +155,7 @@ const ActiveIco = () => {
                       Retry
                     </button>
                     <div className="text-sm text-gray-600 dark:text-gray-400">
-                      Connection Status: {connectionStatus === null ? 'Testing...' : connectionStatus ? 'Connected' : 'Failed'}
+                      Connection Status: {connectionStatus === null ? 'Testing...' : connectionStatus ? '✅ Connected' : '❌ Failed'}
                     </div>
                   </div>
                 </div>

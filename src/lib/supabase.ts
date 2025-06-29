@@ -11,12 +11,7 @@ console.log('Environment variables check:', {
 });
 
 if (!supabaseUrl || !supabaseAnonKey) {
-  console.error('Missing Supabase environment variables:', {
-    url: !!supabaseUrl,
-    key: !!supabaseAnonKey,
-    actualUrl: supabaseUrl,
-    actualKey: supabaseAnonKey ? `${supabaseAnonKey.substring(0, 10)}...` : 'undefined'
-  });
+  console.error('Missing Supabase environment variables');
   throw new Error('Missing Supabase environment variables');
 }
 
@@ -25,71 +20,51 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
     persistSession: true,
     autoRefreshToken: true,
   },
+  db: {
+    schema: 'public',
+  },
+  global: {
+    headers: {
+      'x-client-info': 'meico-app@1.0.0',
+      'apikey': supabaseAnonKey, // ✅ CRITICAL: include apikey
+    },
+  },
 });
 
-// Test connection function with detailed logging
+
+// Simple connection test - no logging to reduce console spam
 export const testConnection = async () => {
   try {
-    console.log('🔍 Testing Supabase connection...');
-    console.log('📡 Supabase URL:', supabaseUrl);
-    console.log('🔑 API Key length:', supabaseAnonKey?.length);
-    
-    // Test with a simple query first
-    const { data, error, count } = await supabase
+    const { error } = await supabase
       .from('ico_projects')
-      .select('id, name', { count: 'exact' })
+      .select('id', { count: 'exact' })
       .limit(1);
     
-    if (error) {
-      console.error('❌ Supabase connection error:', error);
-      console.error('Error details:', {
-        message: error.message,
-        details: error.details,
-        hint: error.hint,
-        code: error.code
-      });
-      return false;
-    }
-    
-    console.log('✅ Supabase connection successful!');
-    console.log('📊 Query result:', { data, count });
-    return true;
+    return !error;
   } catch (error) {
-    console.error('💥 Supabase connection failed with exception:', error);
     return false;
   }
 };
 
-// Test all tables
-export const testAllTables = async () => {
-  const tables = ['ico_projects', 'platform_stats', 'featured_projects', 'hero_ads', 'user_profiles'];
-  
-  for (const table of tables) {
-    try {
-      console.log(`🔍 Testing table: ${table}`);
-      const { data, error, count } = await supabase
-        .from(table)
-        .select('*', { count: 'exact' })
-        .limit(1);
-      
-      if (error) {
-        console.error(`❌ Error accessing ${table}:`, error);
-      } else {
-        console.log(`✅ ${table} accessible. Count: ${count}, Sample:`, data);
-      }
-    } catch (err) {
-      console.error(`💥 Exception testing ${table}:`, err);
-    }
+// Cache for frequently accessed data
+const dataCache = new Map();
+const CACHE_DURATION = 30000; // 30 seconds
+
+export const getCachedData = (key: string) => {
+  const cached = dataCache.get(key);
+  if (cached && Date.now() - cached.timestamp < CACHE_DURATION) {
+    return cached.data;
   }
+  return null;
 };
 
-// Initialize connection test
-console.log('🚀 Initializing Supabase connection test...');
-testConnection().then(connected => {
-  if (connected) {
-    console.log('🎉 Database connection established successfully!');
-    testAllTables();
-  } else {
-    console.log('🚨 Database connection failed!');
-  }
-});
+export const setCachedData = (key: string, data: any) => {
+  dataCache.set(key, {
+    data,
+    timestamp: Date.now()
+  });
+};
+
+export const clearCache = () => {
+  dataCache.clear();
+};

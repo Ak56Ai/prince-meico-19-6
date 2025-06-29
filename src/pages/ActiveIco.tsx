@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { ChevronLeft, ChevronRight, RefreshCw } from 'lucide-react';
+import { ChevronLeft, ChevronRight, RefreshCw, AlertCircle } from 'lucide-react';
 import { supabase, testConnection } from '../lib/supabase';
 import IcoCard from '../components/IcoCard';
 
@@ -37,11 +37,11 @@ const ActiveIco = () => {
   }, [currentPage, itemsPerPage]);
 
   const checkConnection = async () => {
-    console.log('Checking database connection...');
+    console.log('🔍 Checking database connection...');
     const isConnected = await testConnection();
     setConnectionStatus(isConnected);
     if (!isConnected) {
-      setError('Database connection failed. Please check your configuration.');
+      setError('❌ Database connection failed. Please check your configuration.');
     }
   };
 
@@ -50,7 +50,18 @@ const ActiveIco = () => {
       setLoading(true);
       setError(null);
       
-      console.log('Fetching projects from database...');
+      console.log('📊 Fetching projects from database...');
+      
+      // Test connection first
+      const { data: testData, error: testError } = await supabase
+        .from('ico_projects')
+        .select('count')
+        .limit(1);
+      
+      if (testError) {
+        console.error('❌ Connection test failed:', testError);
+        throw new Error(`Database connection failed: ${testError.message}`);
+      }
       
       // Get total count first
       const { count, error: countError } = await supabase
@@ -58,18 +69,18 @@ const ActiveIco = () => {
         .select('*', { count: 'exact', head: true });
 
       if (countError) {
-        console.error('Error getting count:', countError);
+        console.error('❌ Error getting count:', countError);
         throw countError;
       }
 
-      console.log('Total projects count:', count);
+      console.log('📈 Total projects count:', count);
       setTotalProjects(count || 0);
 
       // Get paginated data
       const from = (currentPage - 1) * itemsPerPage;
       const to = from + itemsPerPage - 1;
 
-      console.log('Fetching projects with pagination:', { from, to });
+      console.log('📄 Fetching projects with pagination:', { from, to });
 
       const { data, error } = await supabase
         .from('ico_projects')
@@ -78,19 +89,50 @@ const ActiveIco = () => {
         .range(from, to);
 
       if (error) {
-        console.error('Error fetching projects:', error);
+        console.error('❌ Error fetching projects:', error);
         throw error;
       }
 
-      console.log('Fetched projects:', data);
-      setProjects(data || []);
+      console.log('✅ Fetched projects:', data);
       
       if (!data || data.length === 0) {
-        console.log('No projects found in database');
+        console.log('⚠️ No projects found in database, creating sample data...');
+        
+        // Insert sample project if none exist
+        const sampleProject = {
+          name: 'Sample ICO Project',
+          description: 'This is a sample ICO project to demonstrate the platform functionality. It showcases how projects are displayed and managed within the system.',
+          status: 'active',
+          website_url: 'https://example.com',
+          ticker: 'SAMPLE',
+          tags: 'DeFi, Sample, Demo',
+          network: 'ETH',
+          launch_price: '0.001 ETH',
+          token_address: '0x742d35Cc6634C0532925a3b8D4C9db96590b5c8e'
+        };
+        
+        const { data: insertedData, error: insertError } = await supabase
+          .from('ico_projects')
+          .insert([sampleProject])
+          .select();
+        
+        if (insertError) {
+          console.error('❌ Error inserting sample project:', insertError);
+          setProjects([]);
+        } else {
+          console.log('✅ Sample project inserted:', insertedData);
+          setProjects(insertedData || []);
+          setTotalProjects(1);
+        }
+      } else {
+        setProjects(data);
       }
+      
+      setConnectionStatus(true);
     } catch (err: any) {
-      console.error('Error in fetchProjects:', err);
+      console.error('💥 Error in fetchProjects:', err);
       setError(`Failed to load projects: ${err.message || 'Unknown error'}`);
+      setConnectionStatus(false);
     } finally {
       setLoading(false);
     }
@@ -145,6 +187,8 @@ const ActiveIco = () => {
               
               <div className="relative rounded-2xl p-1">
                 <div className="rounded-xl bg-gray-50 dark:bg-gray-800/90 backdrop-blur-sm border border-gray-200 dark:border-white/10 p-8">
+                  <AlertCircle className="w-16 h-16 text-red-500 mx-auto mb-4" />
+                  <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-4">Database Connection Issue</h3>
                   <p className="text-red-600 dark:text-red-400 mb-4">{error}</p>
                   <div className="space-y-4">
                     <button 
@@ -152,10 +196,10 @@ const ActiveIco = () => {
                       className="flex items-center justify-center w-full px-4 py-2 bg-purple-600 rounded-lg hover:bg-purple-700 text-white transition-colors"
                     >
                       <RefreshCw className="w-4 h-4 mr-2" />
-                      Retry
+                      Retry Connection
                     </button>
                     <div className="text-sm text-gray-600 dark:text-gray-400">
-                      Connection Status: {connectionStatus === null ? 'Testing...' : connectionStatus ? '✅ Connected' : '❌ Failed'}
+                      Connection Status: {connectionStatus === null ? '🔍 Testing...' : connectionStatus ? '✅ Connected' : '❌ Failed'}
                     </div>
                   </div>
                 </div>
@@ -178,8 +222,10 @@ const ActiveIco = () => {
             Discover and invest in the most promising blockchain projects.
             Our curated list of active ICOs represents the future of decentralized innovation.
           </p>
-          <div className="mt-4 text-sm text-gray-500 dark:text-gray-400">
-            Database Status: {connectionStatus === null ? 'Checking...' : connectionStatus ? '✅ Connected' : '❌ Disconnected'}
+          <div className="mt-4 text-sm">
+            <span className={`${connectionStatus === null ? 'text-yellow-600 dark:text-yellow-400' : connectionStatus ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
+              Database Status: {connectionStatus === null ? '🔍 Checking...' : connectionStatus ? '✅ Connected' : '❌ Disconnected'}
+            </span>
           </div>
         </div>
 
@@ -221,6 +267,7 @@ const ActiveIco = () => {
             <div className="text-center">
               <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-purple-500 mx-auto mb-4"></div>
               <p className="text-gray-600 dark:text-gray-400">Loading projects...</p>
+              <p className="text-sm text-gray-500 dark:text-gray-500 mt-2">Connecting to database...</p>
             </div>
           </div>
         ) : projects.length > 0 ? (

@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Calendar, Tag, Globe, ExternalLink, Eye, Clock } from 'lucide-react';
+import { Calendar, Tag, Globe, ExternalLink, Eye, Clock, TrendingUp, RefreshCw } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 
 interface FeaturedProject {
@@ -25,17 +25,19 @@ const PricingPlans: React.FC = () => {
   const [featuredProjects, setFeaturedProjects] = useState<FeaturedProject[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [lastFetchTime, setLastFetchTime] = useState<Date | null>(null);
 
+  // Fetch data only on component mount (page load/refresh)
   useEffect(() => {
     fetchFeaturedProjects();
-  }, []);
+  }, []); // Empty dependency array ensures this runs only once on mount
 
   const fetchFeaturedProjects = async () => {
     try {
       setLoading(true);
       setError(null);
       
-      console.log('Fetching featured projects...');
+      console.log('🔄 Fetching featured projects from database...');
 
       // First, try to get featured projects from the featured_projects table
       const { data: featuredData, error: featuredError } = await supabase
@@ -64,10 +66,10 @@ const PricingPlans: React.FC = () => {
         .order('display_order', { ascending: true })
         .limit(3);
 
-      console.log('Featured projects query result:', { featuredData, featuredError });
+      console.log('📊 Featured projects query result:', { featuredData, featuredError });
 
       if (featuredError || !featuredData || featuredData.length === 0) {
-        console.log('Featured projects table query failed or empty, trying direct projects query...');
+        console.log('⚠️ Featured projects table query failed or empty, trying direct projects query...');
         
         // Fallback: Get 3 most recent active projects directly
         const { data: recentData, error: recentError } = await supabase
@@ -77,19 +79,19 @@ const PricingPlans: React.FC = () => {
           .order('created_at', { ascending: false })
           .limit(3);
 
-        console.log('Direct projects query result:', { recentData, recentError });
+        console.log('📈 Direct projects query result:', { recentData, recentError });
 
         if (recentError) {
-          console.error('Direct projects query failed:', recentError);
+          console.error('❌ Direct projects query failed:', recentError);
           throw recentError;
         }
         
         if (recentData && recentData.length > 0) {
-          console.log('Using recent projects as featured:', recentData);
+          console.log('✅ Using recent projects as featured:', recentData);
           setFeaturedProjects(recentData);
         } else {
-          console.log('No projects found, creating sample data...');
-          // Create sample data if no projects exist
+          console.log('📝 No projects found, using sample data...');
+          // Use sample data if no projects exist
           const sampleProjects: FeaturedProject[] = [
             {
               id: 'sample-1',
@@ -151,17 +153,22 @@ const PricingPlans: React.FC = () => {
           ?.map(item => item.ico_projects)
           .filter(project => project !== null) as FeaturedProject[];
         
-        console.log('Extracted featured projects:', projects);
+        console.log('✅ Extracted featured projects:', projects);
         setFeaturedProjects(projects || []);
       }
+
+      // Record the fetch time
+      setLastFetchTime(new Date());
+      console.log('✅ Featured projects loaded successfully at:', new Date().toLocaleTimeString());
+
     } catch (err) {
-      console.error('Error fetching featured projects:', err);
+      console.error('💥 Error fetching featured projects:', err);
       setError('Failed to load featured projects');
       
       // Even on error, show sample data
-      const sampleProjects: FeaturedProject[] = [
+      const fallbackProjects: FeaturedProject[] = [
         {
-          id: 'sample-1',
+          id: 'fallback-1',
           name: 'DeFi Revolution',
           description: 'Revolutionary decentralized finance platform bringing innovative solutions to the blockchain ecosystem.',
           image_url: 'https://images.pexels.com/photos/8370752/pexels-photo-8370752.jpeg?auto=compress&cs=tinysrgb&w=800',
@@ -178,10 +185,16 @@ const PricingPlans: React.FC = () => {
           token_address: '0x742d35Cc6634C0532925a3b8D4C9db96590b5c8e'
         }
       ];
-      setFeaturedProjects(sampleProjects);
+      setFeaturedProjects(fallbackProjects);
     } finally {
       setLoading(false);
     }
+  };
+
+  // Manual refresh function (optional - for future use)
+  const handleManualRefresh = () => {
+    console.log('🔄 Manual refresh triggered by user');
+    fetchFeaturedProjects();
   };
 
   const formatDate = (dateString: string) => {
@@ -229,32 +242,7 @@ const PricingPlans: React.FC = () => {
             <div className="text-center">
               <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-purple-500 mx-auto mb-4"></div>
               <p className="text-gray-600 dark:text-gray-400">Loading featured projects...</p>
-            </div>
-          </div>
-        </div>
-      </section>
-    );
-  }
-
-  if (error) {
-    return (
-      <section className="py-20 relative overflow-hidden bg-white dark:bg-gray-900">
-        <div className="container mx-auto px-4 text-center">
-          <div className="max-w-md mx-auto">
-            <div className="relative group">
-              <div className="absolute inset-0 bg-gradient-to-r from-red-600/20 to-orange-600/20 rounded-2xl blur-xl opacity-80"></div>
-              
-              <div className="relative rounded-2xl p-1">
-                <div className="rounded-xl bg-gray-50 dark:bg-gray-800/90 backdrop-blur-sm border border-gray-200 dark:border-white/10 p-8">
-                  <p className="text-red-600 dark:text-red-400 mb-4">{error}</p>
-                  <button
-                    onClick={fetchFeaturedProjects}
-                    className="px-6 py-3 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-colors"
-                  >
-                    Retry
-                  </button>
-                </div>
-              </div>
+              <p className="text-sm text-gray-500 dark:text-gray-500 mt-2">Fetching data from database...</p>
             </div>
           </div>
         </div>
@@ -274,6 +262,31 @@ const PricingPlans: React.FC = () => {
           <p className="text-gray-600 dark:text-gray-300 text-lg">
             Discover the most promising ICO projects handpicked by our team for exceptional potential and innovation.
           </p>
+          
+          {/* Data fetch info */}
+          <div className="mt-4 flex items-center justify-center space-x-4 text-sm text-gray-500 dark:text-gray-400">
+            <span>📊 Data loaded from database</span>
+            {lastFetchTime && (
+              <span>⏰ Last updated: {lastFetchTime.toLocaleTimeString()}</span>
+            )}
+            <button
+              onClick={handleManualRefresh}
+              disabled={loading}
+              className="flex items-center px-3 py-1 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 rounded-lg transition-colors"
+              title="Refresh data from database"
+            >
+              <RefreshCw className={`w-3 h-3 mr-1 ${loading ? 'animate-spin' : ''}`} />
+              Refresh
+            </button>
+          </div>
+          
+          {error && (
+            <div className="mt-4 p-3 bg-yellow-100 dark:bg-yellow-900/20 border border-yellow-300 dark:border-yellow-700 rounded-lg">
+              <p className="text-yellow-800 dark:text-yellow-200 text-sm">
+                ⚠️ {error} - Showing sample data
+              </p>
+            </div>
+          )}
         </div>
         
         {featuredProjects.length > 0 ? (

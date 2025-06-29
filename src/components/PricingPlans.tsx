@@ -1,10 +1,188 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Calendar, Tag, Globe, ExternalLink, Eye, Clock, TrendingUp, TrendingDown, BarChart3, Coins, RefreshCw } from 'lucide-react';
-import { useData } from '../contexts/DataContext';
+import { Calendar, Tag, Globe, ExternalLink, Eye, Clock } from 'lucide-react';
+import { supabase } from '../lib/supabase';
+
+interface FeaturedProject {
+  id: string;
+  name: string;
+  description: string;
+  image_url: string;
+  status: 'active' | 'upcoming' | 'completed';
+  website_url: string;
+  launch_date: string;
+  ticker: string;
+  tags: string;
+  network: string;
+  ico_start_date: string;
+  ico_end_date: string;
+  launch_price: string;
+  project_details: string;
+  token_address: string;
+}
 
 const PricingPlans: React.FC = () => {
-  const { featuredProjects, featuredLoading, refreshFeaturedProjects } = useData();
+  const [featuredProjects, setFeaturedProjects] = useState<FeaturedProject[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetchFeaturedProjects();
+  }, []);
+
+  const fetchFeaturedProjects = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      
+      console.log('Fetching featured projects...');
+
+      // First, try to get featured projects from the featured_projects table
+      const { data: featuredData, error: featuredError } = await supabase
+        .from('featured_projects')
+        .select(`
+          project_id,
+          ico_projects (
+            id,
+            name,
+            description,
+            image_url,
+            status,
+            website_url,
+            launch_date,
+            ticker,
+            tags,
+            network,
+            ico_start_date,
+            ico_end_date,
+            launch_price,
+            project_details,
+            token_address
+          )
+        `)
+        .eq('is_active', true)
+        .order('display_order', { ascending: true })
+        .limit(3);
+
+      console.log('Featured projects query result:', { featuredData, featuredError });
+
+      if (featuredError || !featuredData || featuredData.length === 0) {
+        console.log('Featured projects table query failed or empty, trying direct projects query...');
+        
+        // Fallback: Get 3 most recent active projects directly
+        const { data: recentData, error: recentError } = await supabase
+          .from('ico_projects')
+          .select('*')
+          .eq('status', 'active')
+          .order('created_at', { ascending: false })
+          .limit(3);
+
+        console.log('Direct projects query result:', { recentData, recentError });
+
+        if (recentError) {
+          console.error('Direct projects query failed:', recentError);
+          throw recentError;
+        }
+        
+        if (recentData && recentData.length > 0) {
+          console.log('Using recent projects as featured:', recentData);
+          setFeaturedProjects(recentData);
+        } else {
+          console.log('No projects found, creating sample data...');
+          // Create sample data if no projects exist
+          const sampleProjects: FeaturedProject[] = [
+            {
+              id: 'sample-1',
+              name: 'DeFi Revolution',
+              description: 'Revolutionary decentralized finance platform bringing innovative solutions to the blockchain ecosystem with advanced yield farming and liquidity mining capabilities.',
+              image_url: 'https://images.pexels.com/photos/8370752/pexels-photo-8370752.jpeg?auto=compress&cs=tinysrgb&w=800',
+              status: 'active',
+              website_url: 'https://example.com',
+              launch_date: '2024-12-31',
+              ticker: 'DEFI',
+              tags: 'DeFi, Yield Farming, Liquidity',
+              network: 'ETH',
+              ico_start_date: '2024-01-01',
+              ico_end_date: '2024-12-31',
+              launch_price: '0.001 ETH',
+              project_details: 'Advanced DeFi platform with 1,000,000,000 total supply',
+              token_address: '0x742d35Cc6634C0532925a3b8D4C9db96590b5c8e'
+            },
+            {
+              id: 'sample-2',
+              name: 'GameFi Universe',
+              description: 'Next-generation gaming platform combining blockchain technology with immersive gameplay experiences and NFT integration for true digital ownership.',
+              image_url: 'https://images.pexels.com/photos/7915437/pexels-photo-7915437.jpeg?auto=compress&cs=tinysrgb&w=800',
+              status: 'upcoming',
+              website_url: 'https://example.com',
+              launch_date: '2024-12-31',
+              ticker: 'GAME',
+              tags: 'Gaming, NFT, Metaverse',
+              network: 'POL',
+              ico_start_date: '2024-02-01',
+              ico_end_date: '2024-12-31',
+              launch_price: '0.005 POL',
+              project_details: 'Gaming ecosystem with 500,000,000 total supply',
+              token_address: '0x8ba1f109551bD432803012645Hac136c22C501e'
+            },
+            {
+              id: 'sample-3',
+              name: 'Green Energy Chain',
+              description: 'Sustainable blockchain solution focused on renewable energy trading and carbon credit tokenization for a greener future.',
+              image_url: 'https://images.pexels.com/photos/9800029/pexels-photo-9800029.jpeg?auto=compress&cs=tinysrgb&w=800',
+              status: 'active',
+              website_url: 'https://example.com',
+              launch_date: '2024-12-31',
+              ticker: 'GREEN',
+              tags: 'Green Energy, Sustainability, Carbon Credits',
+              network: 'BNB',
+              ico_start_date: '2024-01-15',
+              ico_end_date: '2024-12-31',
+              launch_price: '0.01 BNB',
+              project_details: 'Sustainable energy platform with 2,000,000,000 total supply',
+              token_address: '0x1f9840a85d5aF5bf1D1762F925BDADdC4201F984'
+            }
+          ];
+          setFeaturedProjects(sampleProjects);
+        }
+      } else {
+        // Extract projects from the joined data
+        const projects = featuredData
+          ?.map(item => item.ico_projects)
+          .filter(project => project !== null) as FeaturedProject[];
+        
+        console.log('Extracted featured projects:', projects);
+        setFeaturedProjects(projects || []);
+      }
+    } catch (err) {
+      console.error('Error fetching featured projects:', err);
+      setError('Failed to load featured projects');
+      
+      // Even on error, show sample data
+      const sampleProjects: FeaturedProject[] = [
+        {
+          id: 'sample-1',
+          name: 'DeFi Revolution',
+          description: 'Revolutionary decentralized finance platform bringing innovative solutions to the blockchain ecosystem.',
+          image_url: 'https://images.pexels.com/photos/8370752/pexels-photo-8370752.jpeg?auto=compress&cs=tinysrgb&w=800',
+          status: 'active',
+          website_url: 'https://example.com',
+          launch_date: '2024-12-31',
+          ticker: 'DEFI',
+          tags: 'DeFi, Yield Farming',
+          network: 'ETH',
+          ico_start_date: '2024-01-01',
+          ico_end_date: '2024-12-31',
+          launch_price: '0.001 ETH',
+          project_details: 'Advanced DeFi platform',
+          token_address: '0x742d35Cc6634C0532925a3b8D4C9db96590b5c8e'
+        }
+      ];
+      setFeaturedProjects(sampleProjects);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const formatDate = (dateString: string) => {
     if (!dateString) return 'TBA';
@@ -32,7 +210,7 @@ const PricingPlans: React.FC = () => {
     return supplyMatch ? supplyMatch[1] : 'N/A';
   };
 
-  if (featuredLoading) {
+  if (loading) {
     return (
       <section className="py-20 relative overflow-hidden bg-white dark:bg-gray-900">
         <div className="absolute inset-0 bg-gradient-to-b from-blue-900/20 to-purple-900/20 dark:from-blue-900/20 dark:to-purple-900/20"></div>
@@ -58,6 +236,32 @@ const PricingPlans: React.FC = () => {
     );
   }
 
+  if (error) {
+    return (
+      <section className="py-20 relative overflow-hidden bg-white dark:bg-gray-900">
+        <div className="container mx-auto px-4 text-center">
+          <div className="max-w-md mx-auto">
+            <div className="relative group">
+              <div className="absolute inset-0 bg-gradient-to-r from-red-600/20 to-orange-600/20 rounded-2xl blur-xl opacity-80"></div>
+              
+              <div className="relative rounded-2xl p-1">
+                <div className="rounded-xl bg-gray-50 dark:bg-gray-800/90 backdrop-blur-sm border border-gray-200 dark:border-white/10 p-8">
+                  <p className="text-red-600 dark:text-red-400 mb-4">{error}</p>
+                  <button
+                    onClick={fetchFeaturedProjects}
+                    className="px-6 py-3 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-colors"
+                  >
+                    Retry
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+    );
+  }
+
   return (
     <section className="py-20 relative overflow-hidden bg-white dark:bg-gray-900">
       <div className="absolute inset-0 bg-gradient-to-b from-blue-900/20 to-purple-900/20 dark:from-blue-900/20 dark:to-purple-900/20"></div>
@@ -67,17 +271,9 @@ const PricingPlans: React.FC = () => {
           <h2 className="text-3xl md:text-4xl font-bold text-gray-900 dark:text-white mb-4">
             Featured <span className="bg-clip-text text-transparent bg-gradient-to-r from-purple-400 to-blue-400">Projects</span>
           </h2>
-          <p className="text-gray-600 dark:text-gray-300 text-lg mb-4">
+          <p className="text-gray-600 dark:text-gray-300 text-lg">
             Discover the most promising ICO projects handpicked by our team for exceptional potential and innovation.
           </p>
-          <button
-            onClick={refreshFeaturedProjects}
-            disabled={featuredLoading}
-            className="inline-flex items-center px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-colors text-sm"
-          >
-            <RefreshCw className={`w-4 h-4 mr-2 ${featuredLoading ? 'animate-spin' : ''}`} />
-            Refresh Featured
-          </button>
         </div>
         
         {featuredProjects.length > 0 ? (

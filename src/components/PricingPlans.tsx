@@ -174,7 +174,7 @@ const PricingPlans: React.FC = () => {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
             {featuredProjects.map((project, index) => (
               <div 
-                key={project.id || index} 
+                key={`featured-project-${project.id}-${index}`}
                 className="relative group"
               >
                 <div className="absolute inset-0 bg-gradient-to-r from-purple-600/20 to-blue-600/20 rounded-3xl blur-xl group-hover:from-purple-600/30 group-hover:to-blue-600/30 transition-all duration-500 transform group-hover:scale-105 opacity-80"></div>
@@ -212,7 +212,7 @@ const PricingPlans: React.FC = () => {
                         <div className="absolute top-4 right-4 flex flex-wrap gap-1 max-w-[120px]">
                           {parseTags(project.tags).slice(0, 2).map((tag, tagIndex) => (
                             <span 
-                              key={tagIndex}
+                              key={`tag-${project.id}-${tagIndex}`}
                               className="inline-flex items-center px-2 py-1 rounded-full text-xs bg-black/50 text-white backdrop-blur-sm"
                             >
                               <Tag className="w-2 h-2 mr-1" />

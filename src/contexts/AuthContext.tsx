@@ -6,6 +6,7 @@ interface AuthContextType {
   user: User | null;
   session: Session | null;
   loading: boolean;
+  isAdmin: boolean;
   signUp: (email: string, password: string, userData?: any) => Promise<any>;
   signIn: (email: string, password: string) => Promise<any>;
   signOut: () => Promise<void>;
@@ -27,6 +28,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
+  const [isAdmin, setIsAdmin] = useState(false);
+
+  // Admin user configuration
+  const ADMIN_USER_ID = 'c4506c4a-ed56-43a2-8a74-da42c0131b7c';
+  const ADMIN_EMAIL = 'govindsingh747@gmail.com';
 
   useEffect(() => {
     // Get initial session
@@ -34,6 +40,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       console.log('Initial session:', session?.user?.id);
       setSession(session);
       setUser(session?.user ?? null);
+      checkAdminStatus(session?.user);
       setLoading(false);
     });
 
@@ -45,6 +52,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         // Update state for all auth events
         setSession(session);
         setUser(session?.user ?? null);
+        checkAdminStatus(session?.user);
         setLoading(false);
 
         // Handle profile creation/update only for specific events
@@ -60,6 +68,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     return () => subscription.unsubscribe();
   }, []);
+
+  const checkAdminStatus = (user: User | null) => {
+    if (!user) {
+      setIsAdmin(false);
+      return;
+    }
+
+    const isUserAdmin = user.id === ADMIN_USER_ID || user.email === ADMIN_EMAIL;
+    console.log('Checking admin status:', {
+      userId: user.id,
+      userEmail: user.email,
+      isAdmin: isUserAdmin,
+      adminId: ADMIN_USER_ID,
+      adminEmail: ADMIN_EMAIL
+    });
+    setIsAdmin(isUserAdmin);
+  };
 
   const createUserProfile = async (user: User) => {
     try {
@@ -229,6 +254,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const { error } = await supabase.auth.signOut();
       if (error) throw error;
       console.log('Manual signout successful');
+      setIsAdmin(false);
     } catch (error) {
       console.error('Error signing out:', error);
       throw error;
@@ -282,6 +308,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     user,
     session,
     loading,
+    isAdmin,
     signUp,
     signIn,
     signOut,
